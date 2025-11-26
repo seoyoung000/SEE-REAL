@@ -1,0 +1,50 @@
+.app-main {
+  background: #f4f6f8;
+  min-height: 100vh;
+  padding-bottom: 80px;
+}
+
+.basic-page {
+  min-height: calc(100vh - 160px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 16px;
+}
+
+.basic-card {
+  max-width: 640px;
+  width: 100%;
+  background: #fff;
+  border: 1px solid #e0e5ec;
+  border-radius: 24px;
+  padding: 48px;
+  text-align: center;
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+}
+
+.basic-label {
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #4f637a;
+  margin-bottom: 12px;
+}
+
+.basic-card h1 {
+  margin: 0 0 16px;
+  font-size: 30px;
+  color: #111421;
+}
+
+.basic-card p {
+  margin: 0;
+  color: #546072;
+  line-height: 1.6;
+}
+
+@media (max-width: 640px) {
+  .basic-card {
+    padding: 32px;
+  }
+}
