@@ -1,9 +1,9 @@
-// src/pages/MyPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   collection,
   collectionGroup,
+  doc,
   limit,
   onSnapshot,
   orderBy,
@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
-import { getZoneName } from "../utils/zones";
+import { getZoneMeta, getZoneName } from "../utils/zones";
 import "./MyPage.css";
 
 const formatDateTime = (timestamp, withTime = false) => {
@@ -44,7 +44,7 @@ function MyPage() {
   const navigate = useNavigate();
   const { user, initializing, logout } = useAuth();
 
-  const [favorites, setFavorites] = useState([]);
+  const [favoriteZoneIds, setFavoriteZoneIds] = useState([]);
   const [userPosts, setUserPosts] = useState([]);
   const [userComments, setUserComments] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -78,25 +78,21 @@ function MyPage() {
 
     const unsubscribeList = [];
 
-    // 관심 구역
-    const favoritesQuery = query(
-      collection(db, "users", user.uid, "favorites"),
-      orderBy("updatedAt", "desc")
-    );
+    // 관심 구역 (users/{uid}.favoriteZones 배열)
+    const favoritesRef = doc(db, "users", user.uid);
     unsubscribeList.push(
       onSnapshot(
-        favoritesQuery,
+        favoritesRef,
         (snapshot) => {
-          setFavorites(
-            snapshot.docs.map((docSnapshot) => ({
-              id: docSnapshot.id,
-              ...docSnapshot.data(),
-            }))
+          const data = snapshot.data();
+          setFavoriteZoneIds(
+            Array.isArray(data?.favoriteZones) ? data.favoriteZones : []
           );
           markReady("favorites");
         },
         (error) => {
           console.warn("관심 구역 정보를 불러오지 못했습니다.", error);
+          setFavoriteZoneIds([]);
           markReady("favorites");
         }
       )
@@ -188,6 +184,7 @@ function MyPage() {
     };
   }, [user]);
 
+  // 헤더 알림 뱃지용
   useEffect(() => {
     if (!user) {
       sessionStorage.setItem("seereal-has-notifications", "0");
@@ -221,6 +218,25 @@ function MyPage() {
     )}`;
   }, [user]);
 
+  const favoriteCards = useMemo(
+    () =>
+      favoriteZoneIds.map((zoneId) => {
+        const meta = getZoneMeta(zoneId);
+        const nextStage =
+          meta?.timeline?.find((item) => item.status === "next")?.label ||
+          meta?.eta ||
+          "예정 정보 없음";
+        return {
+          id: zoneId,
+          zoneName: meta?.name || getZoneName(zoneId, zoneId),
+          stage: meta?.stageLabel || meta?.stage || "단계 정보 준비 중",
+          district: meta?.district || "관심 구역",
+          next: nextStage,
+        };
+      }),
+    [favoriteZoneIds]
+  );
+
   if (initializing || !user) {
     return (
       <div className="mypage-container">
@@ -251,7 +267,7 @@ function MyPage() {
           </div>
         </div>
         <div className="profile-actions">
-          <button type="button" onClick={() => navigate("/help")}>
+          <button type="button" onClick={() => navigate("/account-settings")}>
             계정 관리
           </button>
           <button type="button" className="outline" onClick={logout}>
@@ -265,7 +281,7 @@ function MyPage() {
 
       <section className="quick-stats">
         <div>
-          <strong>{favorites.length}</strong>
+          <strong>{favoriteZoneIds.length}</strong>
           <span>관심 구역</span>
         </div>
         <div>
@@ -303,45 +319,37 @@ function MyPage() {
               </div>
             ))}
           </div>
-        ) : favorites.length === 0 ? (
+        ) : favoriteCards.length === 0 ? (
           <div className="section-empty">
             아직 등록된 관심 구역이 없습니다. 지도 또는 상세 페이지에서
             북마크를 추가해 주세요.
           </div>
         ) : (
           <div className="favorite-grid">
-            {favorites.map((fav) => {
-              const zoneName = fav.zoneName || fav.zoneId || fav.id;
-              const stage = fav.stage || "진행 단계 업데이트 예정";
-              const next = fav.nextEvent || fav.nextStage || "일정 정보 없음";
-              const updatedAt = formatDateTime(fav.updatedAt, true);
-              return (
-                <button
-                  type="button"
-                  key={fav.id}
-                  className="favorite-card"
-                  onClick={() =>
-                    navigate(`/community/${fav.zoneId || fav.id || "전체"}`)
-                  }
-                >
-                  <div className="favorite-card-header">
-                    <p>{zoneName}</p>
-                    <span>{fav.district || ""}</span>
+            {favoriteCards.map((fav) => (
+              <button
+                type="button"
+                key={fav.id}
+                className="favorite-card"
+                onClick={() => navigate(`/community/${fav.id}`)}
+              >
+                <div className="favorite-card-header">
+                  <p>{fav.zoneName}</p>
+                  <span>{fav.district}</span>
+                </div>
+                <p className="favorite-stage">{fav.stage}</p>
+                <div className="favorite-meta">
+                  <div>
+                    <span>다음 일정</span>
+                    <strong>{fav.next}</strong>
                   </div>
-                  <p className="favorite-stage">{stage}</p>
-                  <div className="favorite-meta">
-                    <div>
-                      <span>다음 일정</span>
-                      <strong>{next}</strong>
-                    </div>
-                    <div>
-                      <span>업데이트</span>
-                      <strong>{updatedAt}</strong>
-                    </div>
+                  <div>
+                    <span>업데이트</span>
+                    <strong>지도에서 관리</strong>
                   </div>
-                </button>
-              );
-            })}
+                </div>
+              </button>
+            ))}
           </div>
         )}
       </section>
@@ -443,7 +451,7 @@ function MyPage() {
             <p className="section-label">알림 모음</p>
             <h2>단계 변화 · 댓글 알림</h2>
           </div>
-          <button type="button" onClick={() => navigate("/community")}>
+          <button type="button" onClick={() => navigate("/account-settings")}>
             알림 설정
           </button>
         </div>

@@ -18,6 +18,30 @@
   padding-right: 4px;
 }
 
+.favorite-toggle {
+  width: 100%;
+  border-radius: 16px;
+  border: 1px solid #d6deeb;
+  background: #f4f6fb;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2533;
+  cursor: pointer;
+}
+
+.favorite-toggle.active {
+  background: #2268a0;
+  border-color: #2268a0;
+  color: #fff;
+}
+
+.favorite-toggle:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 .infoPanel .close-btn {
   position: absolute;
   top: 14px;

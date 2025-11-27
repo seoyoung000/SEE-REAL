@@ -1,13 +1,19 @@
-//utils/zones.js
+// utils/zones.js
+import { ZONE_LOOKUP, ZONES } from "../data/zones";
+
 export const DEFAULT_ZONE_SLUG = "hannam-3";
 
-export const ZONE_LABELS = {
-  "hannam-3": "한남 3구역",
-  "hannam-2": "한남 2구역",
+const STATIC_LABELS = {
   "hannam-1": "한남 1구역",
-  "hannam-heights": "한남 하이츠",
-  "hannam-hive": "한남 하이브",
 };
+
+export const ZONE_LABELS = ZONES.reduce(
+  (acc, zone) => ({
+    ...acc,
+    [zone.slug]: zone.name,
+  }),
+  { ...STATIC_LABELS }
+);
 
 export const ZONE_OPTIONS = Object.entries(ZONE_LABELS).map(
   ([slug, name]) => ({ slug, name })
@@ -18,6 +24,11 @@ export function getZoneName(zoneId, fallback = "한남동") {
     return fallback;
   }
   return ZONE_LABELS[zoneId] || zoneId;
+}
+
+export function getZoneMeta(zoneId) {
+  if (!zoneId) return null;
+  return ZONE_LOOKUP[zoneId] || null;
 }
 
 export function formatZoneLabel(zoneId) {

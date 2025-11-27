@@ -10,6 +10,7 @@ import PostWrite from "./pages/PostWrite";
 import PostDetail from "./pages/PostDetail";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AccountSettings from "./pages/AccountSettings";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProcessGuidePage from "./pages/ProcessGuidePage";
 
@@ -40,6 +41,7 @@ function App() {
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/account-settings" element={<AccountSettings />} />
           <Route path="/mypage" element={<MyPage />} />
 
           <Route path="/process" element={<ProcessGuidePage />} />

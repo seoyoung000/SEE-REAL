@@ -32,7 +32,8 @@ export function AuthProvider({ children }) {
 
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const credential = await signInWithPopup(auth, googleProvider);
+      return credential.user;
     } catch (error) {
       if (error?.code === "auth/cancelled-popup-request") {
         return null;

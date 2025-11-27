@@ -2,8 +2,18 @@ import React, { useMemo } from "react";
 import hannamStats from "../data/hannam_stats.json";
 import "./InfoPanel.css";
 
-function InfoPanel({ type = "zone", data, onClose }) {
-  const formatNumber = (num) => (num || num === 0 ? num.toLocaleString() : "N/A");
+function InfoPanel({
+  type = "zone",
+  data,
+  onClose,
+  favoriteId,
+  favoriteLabel,
+  isFavorite,
+  favoritePending,
+  onToggleFavorite,
+}) {
+  const formatNumber = (num) =>
+    num || num === 0 ? num.toLocaleString() : "N/A";
 
   const formatPeriod = (stat) =>
     stat ? `${stat.year}.${stat.month.toString().padStart(2, "0")}` : "";
@@ -26,6 +36,9 @@ function InfoPanel({ type = "zone", data, onClose }) {
   if (!data) {
     return null;
   }
+
+  const showFavoriteButton = Boolean(favoriteId && onToggleFavorite);
+  const favoriteButtonLabel = isFavorite ? "관심 구역 해제" : "관심 구역 등록";
 
   const renderZoneInfo = () => (
     <>
@@ -54,9 +67,7 @@ function InfoPanel({ type = "zone", data, onClose }) {
           <p className="info-price-value">
             {formatNumber(latestZoneStat.avg_price)}원
           </p>
-          <p className="info-price-period">
-            {formatPeriod(latestZoneStat)}
-          </p>
+          <p className="info-price-period">{formatPeriod(latestZoneStat)}</p>
           <div className="info-price-trend">
             {recentZoneStats.map((stat) => (
               <div key={`${stat.year}-${stat.month}`}>
@@ -104,12 +115,15 @@ function InfoPanel({ type = "zone", data, onClose }) {
             <span>{formatNumber(data.latest_avg)}원</span>
           </div>
         </div>
+
         {recentStats.length ? (
           <div className="info-price-section">
             <p className="info-price-title">월별 평균 실거래가</p>
             <div className="info-price-trend">
               {recentStats.map((stat) => (
-                <div key={`${data.name || "complex"}-${stat.year}-${stat.month}`}>
+                <div
+                  key={`${data.name || "complex"}-${stat.year}-${stat.month}`}
+                >
                   <span>{formatPeriod(stat)}</span>
                   <strong>{formatNumber(stat.avg_price)}원</strong>
                 </div>
@@ -119,6 +133,7 @@ function InfoPanel({ type = "zone", data, onClose }) {
         ) : (
           <p className="info-price-title">실거래 추이 데이터가 없습니다.</p>
         )}
+
         {recentDeals.length ? (
           <div className="info-deal-section">
             <p className="info-price-title">최근 거래 내역</p>
@@ -129,13 +144,17 @@ function InfoPanel({ type = "zone", data, onClose }) {
                   key={`${deal.date}-${deal.area_m2}-${deal.floor}`}
                 >
                   <div className="deal-headline">
-                    <span className="deal-date">{formatDealDate(deal.date)}</span>
+                    <span className="deal-date">
+                      {formatDealDate(deal.date)}
+                    </span>
                     <strong>{formatNumber(deal.price)}원</strong>
                   </div>
                   <div className="deal-meta">
                     <span>{formatAreaValue(deal.area_m2)}</span>
                     <span>
-                      {typeof deal.floor === "number" ? `${deal.floor}층` : "-"}
+                      {typeof deal.floor === "number"
+                        ? `${deal.floor}층`
+                        : "-"}
                     </span>
                   </div>
                 </div>
@@ -155,6 +174,21 @@ function InfoPanel({ type = "zone", data, onClose }) {
         ×
       </button>
       <div className="infoPanel-content">
+        {showFavoriteButton && (
+          <button
+            type="button"
+            className={`favorite-toggle${isFavorite ? " active" : ""}`}
+            onClick={onToggleFavorite}
+            disabled={favoritePending}
+          >
+            {favoritePending
+              ? "처리 중..."
+              : `${favoriteButtonLabel}${
+                  favoriteLabel ? ` · ${favoriteLabel}` : ""
+                }`}
+          </button>
+        )}
+
         {type === "complex" ? renderComplexInfo() : renderZoneInfo()}
       </div>
     </div>
