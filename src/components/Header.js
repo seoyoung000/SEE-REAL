@@ -40,9 +40,9 @@ function Header() {
       <div className="header-top">
         <div className="header-left">
           <Link to="/" className="header-logo">
-            See:real
+            SEE:REAL
           </Link>
-          <p className="header-tagline">지역 기반 시:리얼 커뮤니티</p>
+          <p className="header-tagline">지역 기반 도시 정보 이해 플랫폼</p>
         </div>
 
         <div className="header-center">

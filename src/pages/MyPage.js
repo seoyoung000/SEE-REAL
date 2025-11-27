@@ -1,3 +1,4 @@
+// src/pages/MyPage.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -11,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { getZoneName } from "../utils/zones";
 import "./MyPage.css";
 
 const formatDateTime = (timestamp, withTime = false) => {
@@ -22,14 +24,17 @@ const formatDateTime = (timestamp, withTime = false) => {
         : timestamp.toDate
         ? timestamp.toDate()
         : new Date(timestamp);
-    return date.toLocaleString("ko-KR", withTime
-      ? {
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      : { year: "numeric", month: "2-digit", day: "2-digit" });
+    return date.toLocaleString(
+      "ko-KR",
+      withTime
+        ? {
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+          }
+        : { year: "numeric", month: "2-digit", day: "2-digit" }
+    );
   } catch (error) {
     return "-";
   }
@@ -252,6 +257,9 @@ function MyPage() {
           <button type="button" className="outline" onClick={logout}>
             로그아웃
           </button>
+          <button type="button" className="danger">
+            탈퇴하기
+          </button>
         </div>
       </section>
 
@@ -348,6 +356,7 @@ function MyPage() {
         </div>
 
         <div className="activity-grid">
+          {/* 작성한 게시글 */}
           <div className="activity-column">
             <div className="activity-header">
               <h3>작성한 게시글</h3>
@@ -367,7 +376,7 @@ function MyPage() {
                 아직 작성한 글이 없습니다. 커뮤니티에서 질문을 남겨보세요.
               </p>
             ) : (
-              userPosts.map((post) => (
+              userPosts.slice(0, 3).map((post) => (
                 <Link
                   key={post.id}
                   to={`/post/${post.id}`}
@@ -376,7 +385,7 @@ function MyPage() {
                   <div>
                     <p className="activity-title">{post.title}</p>
                     <span className="activity-meta">
-                      {post.zoneId || "구역 미지정"} ·{" "}
+                      {getZoneName(post.zoneId, "구역 미지정")} ·{" "}
                       {formatDateTime(post.createdAt)}
                     </span>
                   </div>
@@ -388,6 +397,7 @@ function MyPage() {
             )}
           </div>
 
+          {/* 작성한 댓글 */}
           <div className="activity-column">
             <div className="activity-header">
               <h3>작성한 댓글</h3>
@@ -407,7 +417,7 @@ function MyPage() {
                 아직 댓글을 작성하지 않았습니다. 궁금한 점을 남겨보세요.
               </p>
             ) : (
-              userComments.map((comment) => (
+              userComments.slice(0, 3).map((comment) => (
                 <Link
                   key={comment.id}
                   to={`/post/${comment.postId}`}

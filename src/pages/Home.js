@@ -3,11 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { DEFAULT_ZONE_SLUG, getZoneName } from "../utils/zones";
 import "./Home.css";
 
 const ZONES = [
   {
-    id: "한남3구역",
+    slug: "hannam-3",
+    name: "한남3구역",
     district: "용산구 한남동",
     stage: "관리처분인가",
     stageLabel: "관리처분 인가 완료",
@@ -50,7 +52,8 @@ const ZONES = [
     ],
   },
   {
-    id: "한남하이츠",
+    slug: "hannam-heights",
+    name: "한남하이츠",
     district: "용산구 한남동",
     stage: "이주/철거",
     stageLabel: "순차 이주·철거 진행",
@@ -89,7 +92,8 @@ const ZONES = [
     ],
   },
   {
-    id: "한남2구역",
+    slug: "hannam-2",
+    name: "한남2구역",
     district: "용산구 한남동",
     stage: "사업시행인가",
     stageLabel: "사업시행인가 심의",
@@ -132,7 +136,8 @@ const ZONES = [
     ],
   },
   {
-    id: "한남하이브",
+    slug: "hannam-hive",
+    name: "한남하이브",
     district: "용산구 한남동",
     stage: "계획 수립",
     stageLabel: "정비구역 지정 준비",
@@ -219,7 +224,7 @@ const SAMPLE_PREVIEW_POSTS = [
     id: "sample-1",
     title: "한남3구역 이주 순번표와 대출 일정을 공유합니다",
     category: "정보공유",
-    zoneId: "한남3구역",
+    zoneId: "hannam-3",
     createdAtLabel: "예시",
     contentSummary:
       "관리처분 인가 이후 배포된 이주 순번표와 대출 실행 일정을 정리했습니다. 준비 서류도 함께 확인해 주세요.",
@@ -231,7 +236,7 @@ const SAMPLE_PREVIEW_POSTS = [
     id: "sample-2",
     title: "한남2구역 사업시행인가 보완 의견서 요약",
     category: "공지",
-    zoneId: "한남2구역",
+    zoneId: "hannam-2",
     createdAtLabel: "예시",
     contentSummary:
       "서울시 심의 중 제기된 보완사항과 조합이 마련한 대응 방향을 요약했습니다. 의견 등록 전에 참고하세요.",
@@ -245,13 +250,13 @@ function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const [selectedZoneId, setSelectedZoneId] = useState(ZONES[0].id);
+  const [selectedZoneSlug, setSelectedZoneSlug] = useState(ZONES[0].slug);
   const [latestPosts, setLatestPosts] = useState([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
   const selectedZone = useMemo(
-    () => ZONES.find((zone) => zone.id === selectedZoneId) || ZONES[0],
-    [selectedZoneId]
+    () => ZONES.find((zone) => zone.slug === selectedZoneSlug) || ZONES[0],
+    [selectedZoneSlug]
   );
 
   useEffect(() => {
@@ -272,11 +277,13 @@ function Home() {
           ...doc.data(),
         }));
 
-        setLatestPosts(parsed.length > 0 ? parsed : SAMPLE_PREVIEW_POSTS);
+        setLatestPosts(
+          parsed.length > 0 ? parsed.slice(0, 4) : SAMPLE_PREVIEW_POSTS.slice(0, 4)
+        );
       } catch (error) {
         console.warn("홈 커뮤니티 미리보기를 불러오지 못했습니다.", error);
         if (!cancelled) {
-          setLatestPosts(SAMPLE_PREVIEW_POSTS);
+          setLatestPosts(SAMPLE_PREVIEW_POSTS.slice(0, 4));
         }
       } finally {
         if (!cancelled) {
@@ -292,12 +299,12 @@ function Home() {
   }, []);
 
   const handleViewZone = () => {
-    navigate(`/community/${selectedZone.id}`);
+    navigate(`/community/${selectedZone.slug}`);
   };
 
   const primaryCta = () => {
     if (user) {
-      navigate(`/community/${selectedZone.id}`);
+      navigate(`/community/${selectedZone.slug}`);
       return;
     }
     navigate("/signup");
@@ -362,7 +369,7 @@ function Home() {
           <div className="hero-panel-body">
             <div>
               <p className="panel-zone-name">
-                {selectedZone.district} {selectedZone.id}
+                {selectedZone.district} {selectedZone.name}
               </p>
               <p className="panel-zone-stage">{selectedZone.stageLabel}</p>
             </div>
@@ -400,7 +407,7 @@ function Home() {
             <h2>관심 구역을 선택하고 단계와 이슈를 한눈에 확인하세요</h2>
           </div>
           <button type="button" onClick={handleViewZone}>
-            {selectedZone.id} 커뮤니티 열기
+            {selectedZone.name} 커뮤니티 열기
           </button>
         </div>
 
@@ -409,30 +416,30 @@ function Home() {
             <div className="zone-map">
               {ZONES.map((zone) => (
                 <button
-                  key={zone.id}
+                  key={zone.slug}
                   type="button"
-                  className={`zone-pin${
-                    selectedZone.id === zone.id ? " active" : ""
-                  }`}
+                className={`zone-pin${
+                    selectedZone.slug === zone.slug ? " active" : ""
+                }`}
                   style={{ top: zone.position.top, left: zone.position.left }}
-                  onClick={() => setSelectedZoneId(zone.id)}
+                  onClick={() => setSelectedZoneSlug(zone.slug)}
                 >
-                  <span>{zone.id}</span>
+                  <span>{zone.name}</span>
                 </button>
               ))}
             </div>
             <div className="zone-chip-list">
               {ZONES.map((zone) => (
                 <button
-                  key={`${zone.id}-chip`}
+                  key={`${zone.slug}-chip`}
                   type="button"
                   className={`zone-chip${
-                    selectedZone.id === zone.id ? " selected" : ""
+                    selectedZone.slug === zone.slug ? " selected" : ""
                   }`}
-                  onClick={() => setSelectedZoneId(zone.id)}
+                  onClick={() => setSelectedZoneSlug(zone.slug)}
                 >
                   <span>{zone.district}</span>
-                  <strong>{zone.id}</strong>
+                  <strong>{zone.name}</strong>
                 </button>
               ))}
             </div>
@@ -443,7 +450,7 @@ function Home() {
               <div>
                 <p className="zone-detail-label">ZONE</p>
                 <h3>
-                  {selectedZone.id}
+                  {selectedZone.name}
                   <span>{selectedZone.district}</span>
                 </h3>
               </div>
@@ -470,7 +477,7 @@ function Home() {
             <div className="zone-timeline">
               {selectedZone.timeline.map((item) => (
                 <div
-                  key={`${selectedZone.id}-${item.label}`}
+                  key={`${selectedZone.slug}-${item.label}`}
                   className={`timeline-card ${item.status}`}
                 >
                   <p className="timeline-label">{item.label}</p>
@@ -531,7 +538,7 @@ function Home() {
         <div className="finance-grid">
           <div className="finance-card">
             <header>
-              <p>{selectedZone.id} 예상 수치</p>
+              <p>{selectedZone.name} 예상 수치</p>
               <span>실제 계약 시 변동될 수 있습니다</span>
             </header>
             <div className="finance-values">
@@ -601,7 +608,7 @@ function Home() {
             <h2>실시간으로 올라오는 주민 의견과 질문</h2>
           </div>
           <button type="button" onClick={handleViewZone}>
-            {selectedZone.id} 게시판 보기
+            {selectedZone.name} 게시판 보기
           </button>
         </div>
 
@@ -644,7 +651,8 @@ function Home() {
                   <p className="community-snippet">{snippet}</p>
                   <div className="community-meta">
                     <span>
-                      {post.zoneId || "전체"} · {timeLabel}
+                      {getZoneName(post.zoneId, post.zoneName || "전체")} ·{" "}
+                      {timeLabel}
                     </span>
                     <span>댓글 {post.commentCount || 0}</span>
                   </div>

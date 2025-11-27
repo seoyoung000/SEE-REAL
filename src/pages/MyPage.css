@@ -94,6 +94,12 @@
   border: 1px solid #d1d7e0;
 }
 
+.profile-actions button.danger {
+  background: #fef2f2;
+  color: #b42318;
+  border: 1px solid #f6c7c0;
+}
+
 .quick-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -260,6 +266,16 @@
 
 .activity-item:last-child {
   border-bottom: none;
+}
+
+.activity-more {
+  border: none;
+  background: none;
+  color: #2268a0;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 0 0;
+  align-self: flex-end;
 }
 
 .activity-title {

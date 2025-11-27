@@ -177,23 +177,14 @@ function PostDetail() {
             <span>댓글 {post.commentCount || comments.length}</span>
           </div>
           {canDelete && (
-            <div className="detail-owner-actions">
-              <button
-                type="button"
-                className="detail-edit-btn"
-                onClick={handleEditClick}
-              >
-                수정 (준비중)
-              </button>
-              <button
-                type="button"
-                className="detail-delete-btn"
-                onClick={deletePost}
-                disabled={deleting}
-              >
-                {deleting ? "삭제 중..." : "삭제"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="detail-delete-btn"
+              onClick={deletePost}
+              disabled={deleting}
+            >
+              {deleting ? "삭제 중..." : "삭제"}
+            </button>
           )}
         </div>
       </div>
@@ -275,8 +266,8 @@ function PostDetail() {
       ) : (
         <div className="comment-locked">
           <p>회원만 댓글을 작성할 수 있어요.</p>
-          <button type="button" onClick={login}>
-            로그인하기
+          <button type="button" onClick={() => navigate("/signup")}>
+            회원가입하기
           </button>
         </div>
       )}

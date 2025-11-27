@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
+import { DEFAULT_ZONE_SLUG, getZoneName, ZONE_OPTIONS } from "../utils/zones";
 import "./PostWrite.css";
 
 function PostWrite() {
@@ -11,11 +12,14 @@ function PostWrite() {
   const { user, initializing } = useAuth();
 
   const [category, setCategory] = useState("공지");
+  const [zoneSlug, setZoneSlug] = useState(zoneId || DEFAULT_ZONE_SLUG);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const contentLength = useMemo(() => content.length, [content]);
+
+  const zoneDisplayName = getZoneName(zoneSlug);
 
   const handleSubmit = async () => {
     if (!user) {
@@ -33,7 +37,7 @@ function PostWrite() {
         content: content.trim(),
         contentSummary: content.slice(0, 160),
         category,
-        zoneId,
+        zoneId: zoneSlug,
         authorId: user.uid,
         author: user.displayName || user.email || "회원",
         authorPhoto: user.photoURL || "",
@@ -44,7 +48,7 @@ function PostWrite() {
         updatedAt: serverTimestamp(),
       });
 
-      navigate(`/community/${zoneId}`);
+      navigate(`/community/${zoneSlug}`);
     } catch (error) {
       console.error("게시글 저장에 실패했습니다.", error);
       alert("글을 저장하는 중 오류가 발생했어요. 잠시 후 다시 시도해주세요.");
@@ -57,10 +61,10 @@ function PostWrite() {
     if (!initializing && !user) {
       navigate("/login", {
         replace: true,
-        state: { from: `/community/${zoneId || ""}/write` },
+        state: { from: `/community/${zoneSlug}/write` },
       });
     }
-  }, [user, initializing, navigate, zoneId]);
+  }, [user, initializing, navigate, zoneSlug]);
 
   if (initializing || !user) {
     return (
@@ -78,22 +82,25 @@ function PostWrite() {
       <div className="write-title-row">
         <div>
           <p className="zone-label">ZONE</p>
-          <h1 className="write-title">{zoneId} 커뮤니티 글쓰기</h1>
+          <h1 className="write-title">
+            {zoneDisplayName} 커뮤니티 글쓰기
+          </h1>
         </div>
-        <div className="write-author-card">
-          <img
-            src={
-              user.photoURL ||
-              `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                user.displayName || user.email || "회원"
-              )}`
-            }
-            alt="작성자 프로필"
-          />
-          <div>
-            <strong>{user.displayName || user.email}</strong>
-          </div>
-        </div>
+      </div>
+
+      <div className="write-section">
+        <label>구역 선택</label>
+        <select
+          className="write-select"
+          value={zoneSlug}
+          onChange={(event) => setZoneSlug(event.target.value)}
+        >
+          {ZONE_OPTIONS.map((option) => (
+            <option key={option.slug} value={option.slug}>
+              {option.name}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="write-section">
