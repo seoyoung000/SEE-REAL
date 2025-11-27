@@ -1,0 +1,74 @@
+.infoPanel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 350px;
+  height: 100%; /* 부모 요소인 map-container의 높이를 따르도록 설정 */
+  background-color: white;
+  border-bottom-right-radius: 16px;
+  border-top-right-radius: 16px;
+  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15); /* 왼쪽에서 그림자 */
+  z-index: 10;
+  padding: 20px;
+  box-sizing: border-box;
+  animation: slide-in-left 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+.infoPanel-hidden {
+  display: none;
+}
+
+.infoPanel .close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: #eee;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.infoPanel h2 {
+  margin: 0 0 10px 0;
+  padding: 0;
+  font-size: 22px;
+}
+
+.infoPanel .info-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* 한 줄에 하나씩 */
+  gap: 15px;
+}
+
+.infoPanel .info-item {
+  font-size: 15px;
+}
+
+.infoPanel .info-item strong {
+  display: block;
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.infoPanel .info-item .stage {
+  color: #E53E3E;
+  font-weight: bold;
+}
+
+
+@keyframes slide-in-left {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}

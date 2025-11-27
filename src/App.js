@@ -53,7 +53,7 @@ function App() {
             path="/calculator"
             element={
               <FeaturePlaceholder
-                title="투자 계산기"
+                title="사업분석"
                 description="분담금과 예상 수익률, 납부 스케줄을 계산하는 도구를 준비 중입니다."
               />
             }

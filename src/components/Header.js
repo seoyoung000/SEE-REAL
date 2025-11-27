@@ -90,7 +90,7 @@ function Header() {
 
       <nav className="nav-bar">
         <Link to="/process">절차 안내</Link>
-        <Link to="/calculator">투자 계산기</Link>
+        <Link to="/calculator">사업 분석</Link>
         <Link to="/dashboard">노후도 보기</Link>
         <Link to="/community">커뮤니티</Link>
         {user && <Link to="/mypage">마이페이지</Link>}
