@@ -10,6 +10,8 @@ import PostWrite from "./pages/PostWrite";
 import PostDetail from "./pages/PostDetail";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import ProjectDetailPage from "./pages/ProjectDetailPage";
+import ProcessGuidePage from "./pages/ProcessGuidePage";
 
 function FeaturePlaceholder({ title, description }) {
   return (
@@ -40,24 +42,9 @@ function App() {
           <Route path="/signup" element={<Signup />} />
           <Route path="/mypage" element={<MyPage />} />
 
-          <Route
-            path="/process"
-            element={
-              <FeaturePlaceholder
-                title="정비사업 절차 안내"
-                description="절차별 요구 서류, 평균 소요 기간을 곧 확인하실 수 있습니다."
-              />
-            }
-          />
-          <Route
-            path="/calculator"
-            element={
-              <FeaturePlaceholder
-                title="사업분석"
-                description="분담금과 예상 수익률, 납부 스케줄을 계산하는 도구를 준비 중입니다."
-              />
-            }
-          />
+          <Route path="/process" element={<ProcessGuidePage />} />
+          <Route path="/calculator" element={<ProjectDetailPage />} />
+          <Route path="/calculator/:regionId" element={<ProjectDetailPage />} />
           <Route
             path="/dashboard"
             element={

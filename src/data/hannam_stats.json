@@ -1,0 +1,106 @@
+[
+  {
+    "year": 2024,
+    "month": 11,
+    "avg_price": 1850000000,
+    "median_price": 1550000000,
+    "avg_price_per_m2": 18026798,
+    "deal_count": 3
+  },
+  {
+    "year": 2024,
+    "month": 12,
+    "avg_price": 1382500000,
+    "median_price": 1382500000,
+    "avg_price_per_m2": 20251986,
+    "deal_count": 2
+  },
+  {
+    "year": 2025,
+    "month": 1,
+    "avg_price": 5176000000,
+    "median_price": 2100000000,
+    "avg_price_per_m2": 29094740,
+    "deal_count": 5
+  },
+  {
+    "year": 2025,
+    "month": 2,
+    "avg_price": 6420000000,
+    "median_price": 2715000000,
+    "avg_price_per_m2": 32979879,
+    "deal_count": 8
+  },
+  {
+    "year": 2025,
+    "month": 3,
+    "avg_price": 3344842105,
+    "median_price": 1185000000,
+    "avg_price_per_m2": 25691268,
+    "deal_count": 19
+  },
+  {
+    "year": 2025,
+    "month": 4,
+    "avg_price": 13000000000,
+    "median_price": 13000000000,
+    "avg_price_per_m2": 62833713,
+    "deal_count": 1
+  },
+  {
+    "year": 2025,
+    "month": 5,
+    "avg_price": 2771666667,
+    "median_price": 2285000000,
+    "avg_price_per_m2": 16786033,
+    "deal_count": 3
+  },
+  {
+    "year": 2025,
+    "month": 6,
+    "avg_price": 2591428571,
+    "median_price": 1090000000,
+    "avg_price_per_m2": 23921827,
+    "deal_count": 14
+  },
+  {
+    "year": 2025,
+    "month": 7,
+    "avg_price": 1119461538,
+    "median_price": 990000000,
+    "avg_price_per_m2": 18378994,
+    "deal_count": 13
+  },
+  {
+    "year": 2025,
+    "month": 8,
+    "avg_price": 4109545455,
+    "median_price": 1050000000,
+    "avg_price_per_m2": 25350639,
+    "deal_count": 11
+  },
+  {
+    "year": 2025,
+    "month": 9,
+    "avg_price": 1672500000,
+    "median_price": 1492500000,
+    "avg_price_per_m2": 25162678,
+    "deal_count": 8
+  },
+  {
+    "year": 2025,
+    "month": 10,
+    "avg_price": 1132500000,
+    "median_price": 1005000000,
+    "avg_price_per_m2": 20343858,
+    "deal_count": 8
+  },
+  {
+    "year": 2025,
+    "month": 11,
+    "avg_price": 1990000000,
+    "median_price": 2400000000,
+    "avg_price_per_m2": 18518925,
+    "deal_count": 3
+  }
+]

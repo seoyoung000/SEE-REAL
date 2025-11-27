@@ -63,6 +63,55 @@
   font-weight: bold;
 }
 
+.info-price-section {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.info-price-title {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.info-price-value {
+  margin: 4px 0 0;
+  font-size: 20px;
+  color: #111827;
+  font-weight: 700;
+}
+
+.info-price-period {
+  margin: 2px 0 12px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.info-price-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.info-price-trend span {
+  font-size: 12px;
+  color: #6b7280;
+  margin-right: 6px;
+}
+
+.info-price-trend strong {
+  font-size: 14px;
+  color: #1f2937;
+}
+
+@media (max-width: 768px) {
+  .infoPanel {
+    width: 100%;
+    border-radius: 0 0 16px 16px;
+  }
+}
+
 
 @keyframes slide-in-left {
   0% {

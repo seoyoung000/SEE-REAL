@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import hannamInfo from "../data/basic_info.json"; // 임시로 한남 데이터 사용
+import hannamStats from "../data/hannam_stats.json";
 import "./ProjectDetailPage.css";
 
 // 모든 진행 단계를 순서대로 정의 (사용자 요청에 '수립 - 착립' -> '수립' 및 '착공'으로 수정)
@@ -32,36 +33,105 @@ const getProgress = (currentStage) => {
   return Math.round(((currentIndex + 1) / allStages.length) * 100);
 };
 
-// finance_sim.csv 데이터 (하드코딩)
-const financeData = [
-    { rate: 3.0, contrib: 180, profitRate: 5.2 },
-    { rate: 3.5, contrib: 170, profitRate: 4.8 },
-    { rate: 4.0, contrib: 160, profitRate: 4.5 },
-    { rate: 4.5, contrib: 150, profitRate: 4.2 },
-    { rate: 5.0, contrib: 140, profitRate: 4.0 }
-];
+const stageValueMap = {
+  "추진위원회 구성": 1,
+  "정비구역 지정": 2,
+  "조합설립인가": 3,
+  "사업시행인가": 4,
+  "관리처분계획 수립": 5,
+  착공: 6,
+  준공: 7,
+};
+
+const formatPeriod = (stat) =>
+  stat ? `${stat.year}년 ${stat.month.toString().padStart(2, "0")}월` : "";
 
 function ProjectDetailPage() {
   const { regionId } = useParams();
-  const currentStage = hannamInfo.stage === '관리처분인가' ? '관리처분계획 수립' : hannamInfo.stage;
+  const displayRegionName =
+    hannamInfo.note ||
+    (regionId ? regionId.replace(/_/g, " ") : "사업 분석");
+  const currentStage =
+    hannamInfo.stage === "관리처분인가"
+      ? "관리처분계획 수립"
+      : hannamInfo.stage;
   const progressPercentage = getProgress(currentStage);
 
-  const [interestRate, setInterestRate] = useState(4.0);
+  const sortedStats = useMemo(() => {
+    return [...hannamStats].sort((a, b) => {
+      if (a.year === b.year) {
+        return a.month - b.month;
+      }
+      return a.year - b.year;
+    });
+  }, []);
 
-  const simulatedData = useMemo(() => {
-    // 가장 가까운 금리 데이터를 찾아 근사값 사용
-    const baseData = financeData.find(d => d.rate === interestRate) ||
-                     financeData.reduce((prev, curr) => (Math.abs(curr.rate - interestRate) < Math.abs(prev.rate - interestRate) ? curr : prev));
-    return {
-        simulatedContrib: baseData ? baseData.contrib * 100000000 : 0, // 억 단위
-        simulatedProfitRate: baseData ? baseData.profitRate : 0
-    };
-  }, [interestRate]);
+  const [selectedPeriodIndex, setSelectedPeriodIndex] = useState(
+    sortedStats.length ? sortedStats.length - 1 : 0
+  );
+  const selectedPeriod =
+    sortedStats[selectedPeriodIndex] || sortedStats[sortedStats.length - 1];
+  const prevPeriod =
+    selectedPeriodIndex > 0 ? sortedStats[selectedPeriodIndex - 1] : null;
+
+  const [officialPrice, setOfficialPrice] = useState(
+    selectedPeriod ? Math.round(selectedPeriod.avg_price * 0.65) : 0
+  );
+  const [distance, setDistance] = useState(500);
+  const [stageSelection, setStageSelection] = useState(
+    stageValueMap[currentStage] || 3
+  );
+
+  useEffect(() => {
+    if (selectedPeriod) {
+      setOfficialPrice(Math.round(selectedPeriod.avg_price * 0.65));
+    }
+  }, [selectedPeriod]);
+
+  const trendStats = useMemo(() => {
+    const start = Math.max(sortedStats.length - 8, 0);
+    return sortedStats.slice(start);
+  }, [sortedStats]);
+
+  const maxTrendPrice = useMemo(() => {
+    return trendStats.reduce(
+      (max, stat) => Math.max(max, stat.avg_price),
+      0
+    );
+  }, [trendStats]);
+
+  const priceChange =
+    prevPeriod && selectedPeriod
+      ? ((selectedPeriod.avg_price - prevPeriod.avg_price) /
+          prevPeriod.avg_price) *
+        100
+      : null;
+
+  const predictedPrice = useMemo(() => {
+    if (!selectedPeriod) return 0;
+    const baseAvg = selectedPeriod.avg_price;
+    const weights = { w1: 0.32, w2: 0.45, w3: 0.15, w4: 0.08, bias: 50000000 };
+    const normalizedStage = Math.min(stageSelection, 7) / 7;
+    const normalizedDistance =
+      (2000 - Math.min(distance, 2000)) / 2000; // 0~1
+    const stageContribution = normalizedStage * baseAvg * weights.w3;
+    const accessContribution = normalizedDistance * baseAvg * weights.w4;
+    return Math.round(
+      weights.w1 * officialPrice +
+        weights.w2 * baseAvg +
+        stageContribution +
+        accessContribution +
+        weights.bias
+    );
+  }, [selectedPeriod, officialPrice, stageSelection, distance]);
+
+  const formatCurrency = (value) =>
+    value ? `${value.toLocaleString()}원` : "데이터 없음";
 
 
   return (
     <div className="detail-page-container">
-      <h1>{hannamInfo.note || regionId.replace(/_/g, " ")}</h1>
+      <h1>{displayRegionName}</h1>
 
       {/* --- 상단 섹션: 플로우차트 및 진행률 --- */}
       <div className="section">
@@ -93,41 +163,121 @@ function ProjectDetailPage() {
       <div className="section">
         <h2>재무 분석 시뮬레이션</h2>
         <div className="simulation-controls">
-          <label htmlFor="interestRate">기준 금리 조정: {interestRate.toFixed(1)}%</label>
+          <div className="period-label">
+            <span>실제 거래 데이터를 기간별로 확인해 보세요.</span>
+            {selectedPeriod && (
+              <strong>{formatPeriod(selectedPeriod)}</strong>
+            )}
+          </div>
           <input
             type="range"
-            id="interestRate"
-            min="3.0"
-            max="5.0"
-            step="0.5"
-            value={interestRate}
-            onChange={(e) => setInterestRate(parseFloat(e.target.value))}
+            min="0"
+            max={Math.max(sortedStats.length - 1, 0)}
+            value={selectedPeriodIndex}
+            onChange={(e) => setSelectedPeriodIndex(Number(e.target.value))}
           />
-          <p style={{marginTop: '10px', fontSize: '14px', color: '#666'}}>
-            금리를 조정하여 예상 분담금과 수익률 변화를 시뮬레이션 해보세요.
+          <p style={{ marginTop: "10px", fontSize: "14px", color: "#666" }}>
+            월평균 실거래가, 면적당 단가, 거래량을 실제 CSV 데이터에서
+            불러와 반영했습니다.
           </p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginTop: '20px' }}>
-            <div className="graph-placeholder">
-                <p style={{ position: 'absolute', top: '20px', left: '20px', margin: 0, fontSize: '14px', color: '#333', fontWeight: 'bold' }}>
-                    예상 분담금
-                </p>
-                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#2268a0' }}>
-                    {simulatedData.simulatedContrib ? `~ ${(simulatedData.simulatedContrib / 100000000).toFixed(1)}억원` : '데이터 없음'}
-                </p>
-            </div>
-            <div className="graph-placeholder">
-                 <p style={{ position: 'absolute', top: '20px', left: '20px', margin: 0, fontSize: '14px', color: '#333', fontWeight: 'bold' }}>
-                    예상 수익률
-                </p>
-                <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#E53E3E' }}>
-                    {simulatedData.simulatedProfitRate ? `약 ${simulatedData.simulatedProfitRate.toFixed(1)}%` : '데이터 없음'}
-                </p>
-            </div>
+        <div className="stats-grid">
+          <div className="stat-card">
+            <p>평균 실거래가</p>
+            <strong>{formatCurrency(selectedPeriod?.avg_price)}</strong>
+            {priceChange !== null && (
+              <span className={priceChange >= 0 ? "pos" : "neg"}>
+                {priceChange >= 0 ? "▲" : "▼"} {Math.abs(priceChange).toFixed(1)}
+                %
+              </span>
+            )}
+          </div>
+          <div className="stat-card">
+            <p>중위 실거래가</p>
+            <strong>{formatCurrency(selectedPeriod?.median_price)}</strong>
+            <span>거래 수 {selectedPeriod?.deal_count || 0}건</span>
+          </div>
+          <div className="stat-card">
+            <p>평균 ㎡당 단가</p>
+            <strong>
+              {selectedPeriod
+                ? `${Math.round(selectedPeriod.avg_price_per_m2).toLocaleString()}원`
+                : "데이터 없음"}
+            </strong>
+            <span>HS: {displayRegionName}</span>
+          </div>
         </div>
-        <p style={{textAlign: 'center', marginTop: '10px', color: '#888'}}>
-            * 실제 차트 라이브러리 연동 시 그래프로 시각화 가능합니다.
-        </p>
+        <div className="trend-chart">
+          {trendStats.map((stat) => {
+            const height = maxTrendPrice
+              ? (stat.avg_price / maxTrendPrice) * 100
+              : 0;
+            return (
+              <div
+                key={`${stat.year}-${stat.month}`}
+                className="trend-bar"
+                title={`${formatPeriod(stat)} 평균 ${stat.avg_price.toLocaleString()}원`}
+              >
+                <div
+                  className="trend-bar-fill"
+                  style={{ height: `${height}%` }}
+                />
+                <span>{`${stat.month}월`}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div className="calc-section">
+          <div>
+            <h3>Y_hat 예측 계산</h3>
+            <p className="calc-desc">
+              엑셀 모델 구조(W1~W4)에 맞춰 공시지가, 주변 시세(X2), 정비
+              단계(X3), 접근성(X4)을 반영해 완공 후 예상 가격을 계산합니다.
+            </p>
+          </div>
+          <div className="calc-grid">
+            <label>
+              X1 공시지가 (₩)
+              <input
+                type="number"
+                value={officialPrice}
+                min={0}
+                step={50000000}
+                onChange={(e) => setOfficialPrice(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              X4 지하철 거리 (m)
+              <input
+                type="number"
+                value={distance}
+                min={50}
+                step={50}
+                onChange={(e) => setDistance(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              X3 정비 단계
+              <select
+                value={stageSelection}
+                onChange={(e) => setStageSelection(Number(e.target.value))}
+              >
+                {allStages.map((stage) => (
+                  <option key={stage} value={stageValueMap[stage]}>
+                    {stage}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <div className="calc-result">
+            <p>예상 Y_hat(완공 후 실거래가)</p>
+            <strong>{formatCurrency(predictedPrice)}</strong>
+            <span>
+              X2(주변 시세)는 {formatPeriod(selectedPeriod)} 평균값을 사용했습니다.
+            </span>
+          </div>
+        </div>
       </div>
 
       <Link to="/" style={{display: 'block', textAlign: 'center', marginTop: '40px', fontSize: '16px', color: '#2268a0'}}>
