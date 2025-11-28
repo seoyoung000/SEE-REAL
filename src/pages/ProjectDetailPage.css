@@ -221,6 +221,56 @@
   color: #4c5c6c;
 }
 
+.investment-summary {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.4;
+  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.investment-summary-head {
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+  margin-bottom: 4px;
+}
+
+.investment-summary-line {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+}
+
+.calc-intro-message {
+  margin: 0;
+  font-size: 80px;
+  font-weight: 700;
+  color: #000;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.calc-intro-summary {
+  font-size: 80px;
+  font-weight: 700;
+  color: #000;
+}
+
+.calc-intro-line {
+  font-size: 80px;
+  font-weight: 700;
+  color: #000;
+  display: block;
+  white-space: normal;
+}
+
 .calc-result strong {
   font-size: 24px;
   color: #1b365d;

@@ -278,44 +278,49 @@ const generateAssetComparisonChartData = (simulatorResult) => {
     return { labels: [], datasets: [] };
   }
 
-  const currentAssetValue = simulatorResult.current_trade; // 현재 자산 가치
-  const currentTotalCapital = simulatorResult.current_trade + simulatorResult.invest_K; // 현재 총 투자 자본 (현재 자산 가치 + 투자금)
-  const predictedTotalAssetValue = simulatorResult.predicted_future_asset + simulatorResult.final_amount; // 예상 총 자산 가치
+  // 1) 입력으로부터 값 가져오기
+  const currentAssetValue = simulatorResult.current_trade;     // 현재 자산 가치 = 현재 시세 (기준점)
+  const currentTotalCapital = simulatorResult.invest_K;        // 현재 총 투자 자본 = 내가 넣는 투자금 K
+  const predictedTotalAssetValue = simulatorResult.final_amount; // 예상 총 자산 가치 = 투자금의 미래 가치 J
 
-  const assetIncrease = predictedTotalAssetValue - currentTotalCapital; // 자산 상승분
-  const overallReturnRate = currentTotalCapital > 0 ? (assetIncrease / currentTotalCapital) * 100 : 0; // 수익률
+  // 2) 수익 및 수익률 계산 (오직 K 기준)
+  const assetIncrease = predictedTotalAssetValue - currentTotalCapital; // J - K
+  const overallReturnRate =
+    currentTotalCapital > 0 ? (assetIncrease / currentTotalCapital) * 100 : 0;
 
+  // 3) 차트용 데이터셋 구성
   return {
-    labels: ['자산 현황'], // 단일 라벨로 묶고 데이터셋으로 항목을 나눕니다.
+    labels: ['자산 현황'],
     datasets: [
       {
-        label: '현재 자산 가치',
+        label: '현재 자산 가치 (시세)',
         data: [currentAssetValue],
         backgroundColor: 'rgba(75, 192, 192, 0.5)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
       },
       {
-        label: '현재 총 투자 자본',
+        label: '현재 투자금 (K)',
         data: [currentTotalCapital],
         backgroundColor: 'rgba(54, 162, 235, 0.5)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1,
       },
       {
-        label: '예상 총 자산 가치',
+        label: '미래 투자금 가치 (J)',
         data: [predictedTotalAssetValue],
         backgroundColor: 'rgba(255, 159, 64, 0.5)',
         borderColor: 'rgba(255, 159, 64, 1)',
         borderWidth: 1,
       },
     ],
-    // 보조 수치도 함께 반환하여 컴포넌트에서 활용
-    currentAssetValue,
-    currentTotalCapital,
-    predictedTotalAssetValue,
-    assetIncrease,
-    overallReturnRate
+
+    // 컴포넌트에서 사용할 보조 수치 (이 이름 그대로 유지)
+    currentAssetValue,         // 현재 자산 가치 (시세)
+    currentTotalCapital,       // 현재 총 투자 자본 = 투자금 K
+    predictedTotalAssetValue,  // 예상 총 자산 가치 = J
+    assetIncrease,             // J - K
+    overallReturnRate,         // (J - K) / K * 100
   };
 };
 
@@ -672,6 +677,13 @@ function ProjectDetailPage() {
               {simulatorError && <p className="error-message">{simulatorError}</p>}
               {simulatorResult && !simulatorError && (
                 <>
+                  <p className="investment-summary">
+                    {simulatorInvestK.toLocaleString()}원을 투자하시면
+                    <br />
+                    {simulatorFutureYear}년에{" "}
+                    {simulatorResult.profit_rate?.toFixed(2) ?? "0.00"}%의 수익을
+                    예상할 수 있어요!
+                  </p>
                   <p>예상 수익 금액</p>
                   <strong>{formatCurrency(simulatorResult.profit_amount)}</strong>
                 </>
@@ -685,8 +697,8 @@ function ProjectDetailPage() {
               <div className="additional-investment-analysis" style={{ marginTop: '20px' }}>
                 <h3>총 자산 비교 및 분석</h3>
                 <p>현재 자산 가치: <strong>{formatCurrency(assetComparisonChartData.currentAssetValue)}</strong></p>
-                <p>현재 총 투자 자본: <strong>{formatCurrency(assetComparisonChartData.currentTotalCapital)}</strong></p>
-                <p>예상 총 자산 가치: <strong>{formatCurrency(assetComparisonChartData.predictedTotalAssetValue)}</strong></p>
+                <p>투자금: <strong>{formatCurrency(assetComparisonChartData.currentTotalCapital)}</strong></p>
+                <p>미래 투자금 가치: <strong>{formatCurrency(assetComparisonChartData.predictedTotalAssetValue)}</strong></p>
                 <p>자산 상승분: <strong>{formatCurrency(assetComparisonChartData.assetIncrease)}</strong></p>
                 <p>수익률: <strong>{assetComparisonChartData.overallReturnRate !== undefined ? `${assetComparisonChartData.overallReturnRate.toFixed(2)}%` : 'N/A'}</strong></p>
                 <div className="chart-container" style={{ marginTop: '20px' }}>
