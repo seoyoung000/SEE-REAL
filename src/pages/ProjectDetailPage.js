@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import allRedevelopmentZones from "../data/all_redevelopment_zones.json";
+import hannam3Data from "../data/hannam3_redevelopment_with_polygon.json";
 import hannamStats from "../data/hannam_stats.json";
+import { mlData } from "../data/ml_data.js";
 import markersData from "../data/markers_with_stats.json";
 import "./ProjectDetailPage.css";
 
@@ -57,12 +58,12 @@ function ProjectDetailPage() {
     
     // 한남 3구역은 별도 stats 파일(hannamStats)을 사용
     if (regionId === "11170-900000100") {
-      const info = allRedevelopmentZones.find((zone) => zone["name"] === regionId);
+      const info = hannam3Data.features.find((zone) => zone["name"] === regionId);
       return info ? { info, stats: hannamStats, type: "redevelopment", id: info["name"] } : null;
     }
 
     // 다른 재개발 구역 검색 (별도 stats 없음)
-    const redevelopmentZone = allRedevelopmentZones.find(
+    const redevelopmentZone = hannam3Data.features.find(
       (zone) => zone["name"] === regionId
     );
     if (redevelopmentZone) {
@@ -228,7 +229,7 @@ function ProjectDetailPage() {
         <h1>사업 분석</h1>
         <p>자세한 정보를 보려면 지도에서 관심 구역을 선택해 주세요.</p>
         <Link to="/process" style={{display: 'block', marginTop: '20px', fontSize: '16px', color: '#2268a0'}}>
-            ← 지도 보기로
+            ← 절차 안내로
         </Link>
       </div>
     );
@@ -389,6 +390,36 @@ function ProjectDetailPage() {
           </div>
         )}
 
+        <div className="ml-data-section">
+          <h4>학습 모델 데이터</h4>
+          <div className="ml-data-table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>공시지가</th>
+                  <th>주변 시세</th>
+                  <th>개발 단계</th>
+                  <th>접근성</th>
+                  <th>연도</th>
+                  <th>예상 실거래가</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mlData.map((row, index) => (
+                  <tr key={index}>
+                    <td>{formatCurrency(row.public_price)}</td>
+                    <td>{formatCurrency(row.nearby_market_price)}</td>
+                    <td>{row.redevelopment_stage}</td>
+                    <td>{row.accessibility}</td>
+                    <td>{row.year}</td>
+                    <td>{formatCurrency(row.trade_price)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         {/* 아파트 단지용 주택담보대출 계산기 */}
         {(selectedRegion.type === 'complex') && (
           <div className="calc-section">
@@ -443,7 +474,7 @@ function ProjectDetailPage() {
       </div>
 
       <Link to="/process" style={{display: 'block', textAlign: 'center', marginTop: '40px', fontSize: '16px', color: '#2268a0'}}>
-        ← 지도 보기로
+        ← 절차 안내로
       </Link>
     </div>
   );

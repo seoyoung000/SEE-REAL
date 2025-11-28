@@ -95,12 +95,10 @@ function Header() {
       </div>
 
       <nav className="nav-bar">
+        <Link to="/">홈</Link>
         <Link to="/process">지도 보기</Link>
-        <Link to="/calculator">사업 분석</Link>
-        <Link to="/dashboard">노후도 보기</Link>
         <Link to="/community">커뮤니티</Link>
         {user && <Link to="/mypage">마이페이지</Link>}
-        <Link to="/help">도움말</Link>
       </nav>
     </header>
   );

@@ -3,8 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
   addDoc,
   collection,
-  doc,
   deleteDoc,
+  doc,
+  getDocs,
   increment,
   onSnapshot,
   orderBy,
@@ -19,7 +20,8 @@ import "./PostDetail.css";
 function PostDetail() {
   const { postId } = useParams();
   const navigate = useNavigate();
-  const { user, login } = useAuth();
+  const { user } = useAuth();
+
   const [post, setPost] = useState(null);
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
@@ -28,10 +30,14 @@ function PostDetail() {
   const [viewsUpdated, setViewsUpdated] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // -------------------------------
+  // 게시글 + 댓글 실시간 구독
+  // -------------------------------
   useEffect(() => {
-    if (!postId) return undefined;
+    if (!postId) return;
 
     const postRef = doc(db, "posts", postId);
+
     const unsubscribePost = onSnapshot(postRef, (snapshot) => {
       if (snapshot.exists()) {
         setPost({ id: snapshot.id, ...snapshot.data() });
@@ -45,11 +51,14 @@ function PostDetail() {
       collection(db, "posts", postId, "comments"),
       orderBy("createdAt", "desc")
     );
+
     const unsubscribeComments = onSnapshot(commentsQuery, (snapshot) => {
-      setComments(snapshot.docs.map((docSnapshot) => ({
-        id: docSnapshot.id,
-        ...docSnapshot.data(),
-      })));
+      setComments(
+        snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        }))
+      );
     });
 
     return () => {
@@ -58,6 +67,9 @@ function PostDetail() {
     };
   }, [postId]);
 
+  // -------------------------------
+  // 조회수 증가 (1회만)
+  // -------------------------------
   useEffect(() => {
     if (!postId || viewsUpdated) return;
 
@@ -67,8 +79,8 @@ function PostDetail() {
           views: increment(1),
         });
         setViewsUpdated(true);
-      } catch (error) {
-        console.warn("조회수를 업데이트하지 못했습니다.", error);
+      } catch (err) {
+        console.warn("조회수 증가 실패", err);
       }
     };
 
@@ -86,6 +98,9 @@ function PostDetail() {
     });
   }, [post]);
 
+  // -------------------------------
+  // 댓글 작성
+  // -------------------------------
   const addComment = async () => {
     if (!user) {
       alert("로그인 후 이용해주세요.");
@@ -115,31 +130,42 @@ function PostDetail() {
       setText("");
     } catch (error) {
       console.error("댓글 저장 실패:", error);
-      alert("댓글을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      alert("댓글 저장 중 오류가 발생했습니다.");
     } finally {
       setAddingComment(false);
     }
   };
 
+  // -------------------------------
+  // 글 삭제 (댓글 포함)
+  // -------------------------------
   const canDelete = Boolean(user && post && user.uid === post.authorId);
-  const handleEditClick = () => {
-    alert("글 수정 기능은 준비 중입니다. 곧 업데이트될 예정입니다.");
-  };
 
   const deletePost = async () => {
     if (!canDelete || deleting) return;
+
     const confirmed = window.confirm(
-      "작성하신 글을 삭제하시겠어요? 삭제 후에는 복구할 수 없습니다."
+      "작성하신 글을 삭제하시겠어요? (댓글도 함께 삭제됩니다)"
     );
     if (!confirmed) return;
 
     setDeleting(true);
+
     try {
-      await deleteDoc(doc(db, "posts", postId));
-      navigate(`/community/${post.zoneId || "전체"}`, { replace: true });
+      const postRef = doc(db, "posts", postId);
+      const commentsRef = collection(db, "posts", postId, "comments");
+
+      // 1) 댓글 전체 삭제
+      const commentsSnap = await getDocs(commentsRef);
+      await Promise.all(commentsSnap.docs.map((d) => deleteDoc(d.ref)));
+
+      // 2) 게시글 삭제
+      await deleteDoc(postRef);
+
+      navigate(`/community`, { replace: true });
     } catch (error) {
       console.error("게시글 삭제 실패:", error);
-      alert("글을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      alert("삭제 중 오류가 발생했습니다.");
       setDeleting(false);
     }
   };
@@ -171,11 +197,13 @@ function PostDetail() {
           <span className="category-badge">{post.category}</span>
           <h1 className="detail-title">{post.title}</h1>
         </div>
+
         <div className="detail-actions">
           <div className="detail-stats">
             <span>조회수 {post.views || 0}</span>
             <span>댓글 {post.commentCount || comments.length}</span>
           </div>
+
           {canDelete && (
             <button
               type="button"
@@ -189,6 +217,7 @@ function PostDetail() {
         </div>
       </div>
 
+      {/* 작성자 정보 */}
       <div className="detail-meta">
         <div className="meta-author">
           <img
@@ -206,10 +235,12 @@ function PostDetail() {
         </div>
       </div>
 
+      {/* 본문 */}
       <div className="detail-content">{post.content}</div>
 
       <hr className="divider" />
 
+      {/* 댓글 */}
       <div className="comment-header">
         <h2 className="comment-title">댓글</h2>
         <span className="comment-count">{comments.length}</span>
@@ -228,6 +259,7 @@ function PostDetail() {
                 hour: "2-digit",
                 minute: "2-digit",
               });
+
             return (
               <div key={c.id} className="comment-item">
                 <img
@@ -252,6 +284,7 @@ function PostDetail() {
         )}
       </div>
 
+      {/* 댓글 입력 */}
       {user ? (
         <div className="comment-write">
           <textarea

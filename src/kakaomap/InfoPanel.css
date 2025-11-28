@@ -1,10 +1,10 @@
 .infoPanel {
   position: relative;
-  width: 380px;
+  width: 360px;
   background-color: #fff;
   border-radius: 22px;
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
-  padding: 14px 20px 20px;
+  padding: 26px 28px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -12,49 +12,16 @@
 }
 
 .infoPanel-content {
-  margin-top: 24px;
+  margin-top: 48px;
   overflow-y: auto;
-  max-height: 260px;
-  padding-right: 20px;
-  margin-right: 0;
-  width: 100%;
-  transform: translate(0, -10px);
-}
-
-.infoPanel-inner {
-  max-width: 300px;
-  margin-left: 4px;
-  padding-right: 40px;
-}
-
-.favorite-toggle {
-  width: 100%;
-  border-radius: 16px;
-  border: 1px solid #d6deeb;
-  background: #f4f6fb;
-  padding: 12px 16px;
-  margin-bottom: 18px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2533;
-  cursor: pointer;
-}
-
-.favorite-toggle.active {
-  background: #2268a0;
-  border-color: #2268a0;
-  color: #fff;
-}
-
-.favorite-toggle:disabled {
-  opacity: 0.65;
-  cursor: not-allowed;
+  max-height: min(520px, calc(100vh - 220px));
+  padding-right: 4px;
 }
 
 .infoPanel .close-btn {
   position: absolute;
-  top: 5px;
-  right: 55px;
+  top: 14px;
+  right: 45px;
   background: #edf1f7;
   border: none;
   border-radius: 50%;
@@ -212,11 +179,44 @@
   flex-direction: column;
   gap: 10px;
   margin-top: 18px;
-  margin-bottom: 6px;
+}
+
+.info-simple-text {
+  margin: 14px 0 10px;
+  color: #4f5c6b;
+  line-height: 1.6;
+  font-size: 15px;
+}
+
+.info-simple-details {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-simple-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.info-simple-detail .detail-label {
+  font-size: 20px;
+  font-weight: 700;
+  color: #111421;
+}
+
+.info-simple-note {
+  margin: 0;
+  color: #5d6574;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .view-details-btn,
 .favorite-btn {
+  margin-top: 8px;
+  width: 100%;
   padding: 12px 0;
   border-radius: 12px;
   border: none;
@@ -227,8 +227,13 @@
 }
 
 .view-details-btn {
-  background: #4162f5;
+  background: linear-gradient(135deg, #5e7bff 0%, #3655d6 100%);
   color: #fff;
+  box-shadow: 0 12px 22px rgba(54, 85, 214, 0.24);
+}
+
+.view-details-btn:hover {
+  transform: translateY(-1px);
 }
 
 .favorite-btn {
@@ -237,22 +242,8 @@
   border: 1px solid rgba(31, 47, 92, 0.2);
 }
 
-.favorite-btn + .favorite-btn {
-  margin-top: 6px;
-}
-
-.infoPanel-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.infoPanel-content::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.08);
-  border-radius: 999px;
-}
-
-.infoPanel-content::-webkit-scrollbar-thumb {
-  background: rgba(65, 98, 245, 0.6);
-  border-radius: 999px;
+.favorite-btn:hover {
+  background: #e3e9ff;
 }
 
 @media (max-width: 768px) {
@@ -263,3 +254,51 @@
     max-height: none;
   }
 }
+
+.deal-type-selector {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+  background-color: #eef2f6;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.deal-type-selector button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 9px;
+  background-color: transparent;
+  color: #57606f;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.deal-type-selector button.active {
+  background-color: #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  color: #1a2a44;
+}
+
+.info-deal-section {
+  margin-top: 10px; /* 기존 18px에서 조정 */
+  padding-top: 0; /* 기존 16px에서 조정 */
+  border-top: none; /* 기존 border-top 제거 */
+}
+
+.info-deal-section .deal-type-selector {
+    margin-top: 18px; /* 위쪽 여백 추가 */
+    margin-bottom: 12px; /* 아래쪽 여백 조정 */
+}
+
+.no-deal-data {
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  padding: 20px 0;
+}
+
+

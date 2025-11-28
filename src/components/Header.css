@@ -165,18 +165,20 @@
   border-top: 1px solid #f1f1f1;
   padding: 10px 24px;
   display: flex;
-  gap: 24px;
+  gap: 36px;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .nav-bar a {
-  font-size: 15px;
+  font-size: 17px;
   color: #364152;
   text-decoration: none;
   position: relative;
   padding-bottom: 6px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }
 
 .nav-bar a:hover {

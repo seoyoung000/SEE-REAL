@@ -12,9 +12,16 @@ import "./MapContainer.css";
 
 import allRedevelopmentZones from "../data/all_redevelopment_zones.json";
 import zoneMarkersData from "../data/markers_with_stats.json";
+import { dealsData } from "../data/deals_data.js";
+import { rentDealsData } from "../data/rent_deals_data.js";
 
 // 🔥 새 JSON 적용
 import polygons from "../data/hannam3_redevelopment_with_polygon.json";
+import hannamRedevelopmentGeo from "../data/hannam_itaewon_redevelopment.json";
+import hannamDistrictGeo from "../data/hannam_district.json";
+import itaewonDistrictGeo from "../data/itaewon_district.json";
+
+console.log("hannamRedevelopmentGeo", hannamRedevelopmentGeo);
 
 // ---------------------------
 // Kakao SDK Loader
@@ -47,17 +54,94 @@ const kakaoAppKey = process.env.REACT_APP_KAKAO_APP_KEY;
 
 const defaultCenter = { lat: 37.531, lng: 127.0039 };
 
-const getPolygonColor = (stage) => {
-  switch (stage) {
-    case "추진위원회 승인":
-      return "#ADD8E6";
-    case "사업시행인가":
-      return "#FF8C00";
-    case "관리처분인가":
-      return "#FF0000";
-    default:
-      return "#A9A9A9";
+const geoJsonColors = {
+  redevelopment: { stroke: "#FF6B6B", fill: "#FF6B6B" },
+  hannam: { stroke: "#2268A0", fill: "#2268A0" },
+  itaewon: { stroke: "#0E9F6E", fill: "#0E9F6E" },
+};
+
+const normalizeComplexKey = (value = "") =>
+  value.toString().replace(/\s+/g, "").toLowerCase();
+
+const AREA_KEYS = ["area", "AREA", "land_area", "plan_area", "DGM_AR", "SHAPE_AREA"];
+const HOUSEHOLD_KEYS = [
+  "households",
+  "HOUSEHOLDS",
+  "owner_cnt",
+  "house_cnt",
+  "HOUSE_CNT",
+  "TOT_HSHD",
+  "TOT_HOUSE",
+];
+const TYPE_KEYS = ["type", "TYPE", "category", "plan_type", "zone_category", "LCLAS_CL"];
+const STAGE_KEYS = ["stage", "STAGE", "status", "STATUS", "progress", "zone_category", "LCLAS_CL"];
+const NAME_KEYS = ["name", "NAME", "title", "TITLE", "zone_name", "DGM_NM"];
+
+const getValueFromKeys = (source, keys) => {
+  if (!source) return undefined;
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      const value = source[key];
+      if (value !== undefined && value !== null && value !== "") {
+        return value;
+      }
+    }
   }
+  return undefined;
+};
+
+const toNumberOrNull = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const extractGeoJsonPolygons = (geojson, { idPrefix, label, colors }) => {
+  if (!geojson?.features) return [];
+
+  const toPath = (coords) =>
+    coords.map(([lng, lat]) => ({ lat, lng }));
+
+  const convertGeometry = (geometry) => {
+    if (!geometry) return [];
+
+    // Polygon → [[coords]] 형태
+    if (geometry.type === "Polygon") {
+      return geometry.coordinates.map((ring) => toPath(ring));
+    }
+
+    // MultiPolygon → [[[coords]]] 형태 → 각각 별도의 Polygon으로 분리
+    if (geometry.type === "MultiPolygon") {
+      return geometry.coordinates.flatMap((poly) =>
+        poly.map((ring) => toPath(ring))
+      );
+    }
+
+    return [];
+  };
+
+  return geojson.features.flatMap((feature, featureIndex) => {
+    const paths = convertGeometry(feature.geometry);
+    const props = feature.properties || {};
+
+    const name =
+      props.name ||
+      props.NAME ||
+      props.title ||
+      props.zone_name ||
+      label ||
+      "정비구역";
+
+    return paths.map((path, pathIndex) => ({
+      id: `${idPrefix}-${feature.id || featureIndex}-${pathIndex}`,
+      name,
+      strokeColor: colors.stroke,
+      fillColor: colors.fill,
+      fillOpacity: 0.25,
+      properties: props,
+      path,
+    }));
+  });
 };
 
 // ======================================================
@@ -84,12 +168,66 @@ function MapContainer({ title, height }) {
       .catch((err) => console.error(err));
   }, []);
 
+  const saleDealsByComplex = useMemo(() => {
+    return dealsData.reduce((acc, deal) => {
+      const key = normalizeComplexKey(deal.name);
+      if (!key) return acc;
+      const date = deal.deal_date || deal.date || "";
+      acc[key] = acc[key] || [];
+      acc[key].push({
+        type: "sale",
+        price: deal.deal_price ?? deal.price ?? null,
+        area_m2: deal.area_m2 ?? null,
+        floor: deal.floor ?? null,
+        date,
+      });
+      return acc;
+    }, {});
+  }, []);
+
+  const rentDealsByComplex = useMemo(() => {
+    return rentDealsData.reduce((acc, deal) => {
+      const key = normalizeComplexKey(deal.name);
+      if (!key) return acc;
+      const date = deal.deal_date || deal.date || "";
+      acc[key] = acc[key] || [];
+      acc[key].push({
+        type: deal.type || "jeonse",
+        deposit: deal.deposit ?? null,
+        monthly_rent: deal.monthly_rent ?? null,
+        area_m2: deal.area_m2 ?? null,
+        floor: deal.floor ?? null,
+        date,
+      });
+      return acc;
+    }, {});
+  }, []);
+
   // ---------------------------
   // JSON 폴리곤 로드
   // ---------------------------
-
   const polygonList = useMemo(() => {
     return Array.isArray(polygons?.features) ? polygons.features : [];
+  }, []);
+
+  const geoJsonPolygons = useMemo(() => {
+    return [
+      ...extractGeoJsonPolygons(hannamRedevelopmentGeo, {
+        idPrefix: "hannam-redev",
+        label: "한남·이태원 재개발",
+        colors: geoJsonColors.redevelopment,
+      }),
+      ...extractGeoJsonPolygons(hannamDistrictGeo, {
+        idPrefix: "hannam-district",
+        label: "한남동 지구단위",
+        colors: geoJsonColors.hannam,
+      }),
+      ...extractGeoJsonPolygons(itaewonDistrictGeo, {
+        idPrefix: "itaewon-district",
+        label: "이태원 지구단위",
+        colors: geoJsonColors.itaewon,
+      }),
+    ];
   }, []);
 
   // ---------------------------
@@ -97,11 +235,50 @@ function MapContainer({ title, height }) {
   // ---------------------------
   const complexMarkers = useMemo(() => {
     if (!zoneMarkersData) return [];
-    return Object.entries(zoneMarkersData).map(([name, v]) => ({
-      name,
-      ...v,
-    }));
-  }, []);
+    return Object.entries(zoneMarkersData).map(([name, v]) => {
+      const key = normalizeComplexKey(name);
+      const baseDeals = Array.isArray(v.deals)
+        ? v.deals.map((deal) => ({
+            ...deal,
+            type: deal.type || "sale",
+            date: deal.date || deal.deal_date || "",
+          }))
+        : [];
+      const mergedDeals = [
+        ...baseDeals,
+        ...(saleDealsByComplex[key] || []),
+        ...(rentDealsByComplex[key] || []),
+      ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+      return {
+        name,
+        ...v,
+        deals: mergedDeals,
+      };
+    });
+  }, [saleDealsByComplex, rentDealsByComplex]);
+
+  // ---------------------------
+  // ⭐ NEW: 실제 dynamic zone names 수집 & 저장
+  // ---------------------------
+
+// 1) GeoJSON 기반 구역명만 저장
+function collectAllZoneNames(geoJsonPolys) {
+  const names = geoJsonPolys
+    .map((g) => g.name)
+    .filter(Boolean);
+
+  const unique = [...new Set(names)];
+  sessionStorage.setItem("dynamic-zone-names", JSON.stringify(unique));
+
+  console.log("📌 저장된 동적 구역명 (GeoJSON 기반):", unique);
+}
+
+// 2) 호출
+useEffect(() => {
+  if (geoJsonPolygons.length === 0) return;
+  collectAllZoneNames(geoJsonPolygons);
+}, [geoJsonPolygons]);
 
   // ---------------------------
   // 검색 함수
@@ -144,13 +321,22 @@ function MapContainer({ title, height }) {
         lng: firstPoly.reduce(([lngSum], [lng]) => lngSum + lng, 0) / firstPoly.length,
       };
 
+      const resolvedArea = toNumberOrNull(getValueFromKeys(matchPoly, AREA_KEYS));
+      const resolvedHouseholds = toNumberOrNull(getValueFromKeys(matchPoly, HOUSEHOLD_KEYS));
+      const resolvedType = getValueFromKeys(matchPoly, TYPE_KEYS) || "정비구역";
+      const resolvedStage = getValueFromKeys(matchPoly, STAGE_KEYS);
+      const resolvedName = getValueFromKeys(matchPoly, NAME_KEYS) || matchPoly.name;
+      const resolvedNote = matchPoly.note || resolvedName;
+
       setPanelData({
         id: matchPoly.id,
-        name: matchPoly.name,
-        area: matchPoly.area,
-        stage: matchPoly.stage,
-        household: matchPoly.households,
+        name: resolvedName,
+        area: resolvedArea,
+        type: resolvedType,
+        stage: resolvedStage,
+        households: resolvedHouseholds,
         address: matchPoly.zone_address,
+        note: resolvedNote,
         coords: path,
       });
       setPanelType("zone");
@@ -163,14 +349,14 @@ function MapContainer({ title, height }) {
     alert("검색 결과 없음");
   };
 
-  // ---------------------------
+ // ---------------------------
   // Render
   // ---------------------------
   if (!kakaoAppKey) return <div>API KEY ERROR</div>;
   if (!kakaoReady) return <div>지도 로딩 중...</div>;
 
   return (
-    <section className="map-fullscreen" style={{ height: height || "80vh" }}>
+    <section className="map-fullscreen" style={{ height: height || "100vh" }}>
       <div className="map-fullscreen__canvas">
         <Map
           center={mapCenter}
@@ -185,6 +371,12 @@ function MapContainer({ title, height }) {
               lat,
               lng,
             }));
+            const resolvedArea = toNumberOrNull(getValueFromKeys(poly, AREA_KEYS));
+            const resolvedHouseholds = toNumberOrNull(getValueFromKeys(poly, HOUSEHOLD_KEYS));
+            const resolvedType = getValueFromKeys(poly, TYPE_KEYS) || "정비구역";
+            const resolvedStage = getValueFromKeys(poly, STAGE_KEYS) || poly.stage;
+            const resolvedName = getValueFromKeys(poly, NAME_KEYS) || poly.zone_name || poly.name;
+            const resolvedNote = poly.note || resolvedName;
 
             return (
               <Polygon
@@ -198,18 +390,18 @@ function MapContainer({ title, height }) {
                   setPanelType("zone");
                   setPanelData({
                     id: poly.id,
-                    name: poly.zone_name || poly.name,
+                    name: resolvedName,
                     district: poly.district,
                     dong: poly.dong,
-                    type: poly.type,
+                    type: resolvedType,
                     op_type: poly.op_type,
-                    note: poly.note,
+                    note: resolvedNote,
                     address: poly.address,
-                    stage: poly.stage,
+                    stage: resolvedStage,
                     status: poly.status,
-                    households: poly.households,
+                    households: resolvedHouseholds,
                     zone_address: poly.zone_address,
-                    area: poly.area,
+                    area: resolvedArea,
                     coords: firstPath,
                     typeLabel: "polygon-json",
                   });
@@ -228,6 +420,43 @@ function MapContainer({ title, height }) {
               onClick={() => {
                 setPanelType("complex");
                 setPanelData(c);
+                setIsOpen(true);
+              }}
+            />
+          ))}
+
+          {/* 추가 GeoJSON 폴리곤 */}
+          {geoJsonPolygons.map((poly) => (
+            <Polygon
+              key={poly.id}
+              path={poly.path}
+              strokeWeight={2}
+              strokeColor={poly.strokeColor}
+              strokeOpacity={0.9}
+              fillColor={poly.fillColor}
+              fillOpacity={poly.fillOpacity}
+              onClick={() => {
+                const props = poly.properties || {};
+                const resolvedArea = toNumberOrNull(getValueFromKeys(props, AREA_KEYS));
+                const resolvedHouseholds = toNumberOrNull(getValueFromKeys(props, HOUSEHOLD_KEYS));
+                const resolvedType = getValueFromKeys(props, TYPE_KEYS) || "정비구역";
+                const resolvedStage = getValueFromKeys(props, STAGE_KEYS);
+                const resolvedName = getValueFromKeys(props, NAME_KEYS) || poly.name;
+                const resolvedNote = props?.description || resolvedName;
+
+                setPanelType("zone");
+                setPanelData({
+                  id: poly.id,
+                  name: resolvedName,
+                  area: resolvedArea,
+                  type: resolvedType,
+                  stage: resolvedStage,
+                  households: resolvedHouseholds,
+                  note: resolvedNote,
+                  coords: poly.path,
+                  rawProperties: props,
+                  typeLabel: "geojson",
+                });
                 setIsOpen(true);
               }}
             />

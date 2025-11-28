@@ -230,3 +230,49 @@
   font-size: 13px;
   color: #77808f;
 }
+
+.ml-data-section {
+  margin-top: 25px;
+  padding-top: 25px;
+  border-top: 1px solid #e4ebf5;
+}
+
+.ml-data-section h4 {
+  font-size: 16px;
+  margin-bottom: 15px;
+}
+
+.ml-data-table-container {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #e0e6ef;
+  border-radius: 8px;
+}
+
+.ml-data-table-container table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ml-data-table-container th,
+.ml-data-table-container td {
+  padding: 12px 15px;
+  text-align: left;
+  border-bottom: 1px solid #e0e6ef;
+}
+
+.ml-data-table-container th {
+  background-color: #f9fafb;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+}
+
+.ml-data-table-container td {
+  background-color: #fff;
+}
+
+.ml-data-table-container tbody tr:last-child td {
+  border-bottom: none;
+}

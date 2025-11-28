@@ -115,8 +115,6 @@ function Login() {
           </form>
 
           <div className="auth-footer-links">
-            <Link to="/help">아이디/비밀번호 찾기</Link>
-            <span aria-hidden="true">|</span>
             <Link to="/signup" state={{ from: redirectPath }}>
               회원가입
             </Link>

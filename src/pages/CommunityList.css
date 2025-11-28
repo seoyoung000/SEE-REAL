@@ -303,6 +303,7 @@
 
 .title-cell {
   text-align: left;
+  max-width: 100%;
 }
 
 .title-cell a {
@@ -311,16 +312,22 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
-}
-
-.title-cell a:hover .title-text {
-  text-decoration: underline;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+  min-width: 0;
 }
 
 .title-text {
   font-weight: 600;
   color: #0f172a;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .category-chip,
@@ -329,6 +336,10 @@
   padding: 3px 8px;
   font-size: 12px;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .category-chip {

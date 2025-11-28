@@ -1,3 +1,4 @@
+/* --- 생략: 동일한 import 구조 유지 --- */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -15,8 +16,24 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useAuth } from "../context/AuthContext";
-import { getZoneMeta, getZoneName } from "../utils/zones";
 import "./MyPage.css";
+
+/* -------------------------------------------
+   사람이 읽을 수 있는 구역 이름 매핑 추가!!
+-------------------------------------------- */
+const FIXED_ZONES = [
+  { slug: "hannam-masterplan", name: "한남 지구단위계획구역" },
+  { slug: "itaewon-masterplan", name: "이태원로 주변 지구단위계획구역" },
+  { slug: "hannam-foreigner", name: "한남외인주택부지" },
+  { slug: "hannam3-redev", name: "한남3재정비촉진구역" },
+  { slug: "hannam4-redev", name: "한남4재정비촉진구역" },
+  { slug: "hannam5-redev", name: "한남5재정비촉진구역" },
+];
+
+const readableZoneName = (slug) =>
+  FIXED_ZONES.find((z) => z.slug === slug)?.name || "구역 미지정";
+
+/* ------------------------------------------- */
 
 const formatDateTime = (timestamp, withTime = false) => {
   if (!timestamp) return "-";
@@ -68,10 +85,11 @@ function MyPage() {
     }
   }, [initializing, user, navigate]);
 
+  /* ---------------------------------------------------------
+     Firestore 데이터 불러오기
+  ---------------------------------------------------------- */
   useEffect(() => {
-    if (!user) {
-      return undefined;
-    }
+    if (!user) return;
 
     setLoadingSections({
       favorites: true,
@@ -83,13 +101,12 @@ function MyPage() {
     const markReady = (key) =>
       setLoadingSections((prev) => ({ ...prev, [key]: false }));
 
-    const unsubscribeList = [];
+    const unsubscribes = [];
 
-    // 관심 구역 (users/{uid}.favoriteZones 배열)
-    const favoritesRef = doc(db, "users", user.uid);
-    unsubscribeList.push(
+    /* --- 관심 구역 --- */
+    unsubscribes.push(
       onSnapshot(
-        favoritesRef,
+        doc(db, "users", user.uid),
         (snapshot) => {
           const data = snapshot.data();
           setFavoriteZoneIds(
@@ -98,121 +115,111 @@ function MyPage() {
           setNotificationPrefs(data?.notification || null);
           markReady("favorites");
         },
-        (error) => {
-          console.warn("관심 구역 정보를 불러오지 못했습니다.", error);
-          setFavoriteZoneIds([]);
-          markReady("favorites");
-        }
+        () => markReady("favorites")
       )
     );
 
-    // 내가 쓴 글
-    const postsQuery = query(
-      collection(db, "posts"),
-      where("authorId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(5)
-    );
-    unsubscribeList.push(
+    /* --- 내가 쓴 글 --- */
+    unsubscribes.push(
       onSnapshot(
-        postsQuery,
-        (snapshot) => {
+        query(
+          collection(db, "posts"),
+          where("authorId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+          limit(5)
+        ),
+        (snap) => {
           setUserPosts(
-            snapshot.docs.map((docSnapshot) => ({
-              id: docSnapshot.id,
-              ...docSnapshot.data(),
+            snap.docs.map((d) => ({
+              id: d.id,
+              ...d.data(),
             }))
           );
           markReady("posts");
         },
-        (error) => {
-          console.warn("작성 글을 불러오지 못했습니다.", error);
-          markReady("posts");
-        }
+        () => markReady("posts")
       )
     );
 
-    // 내가 쓴 댓글
-    const commentsQuery = query(
-      collectionGroup(db, "comments"),
-      where("authorId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(5)
-    );
-    unsubscribeList.push(
+    /* ---------------------------------------------------------
+       내가 작성한 댓글 (게시물 삭제 시 자동 제거 포함)
+    ---------------------------------------------------------- */
+    unsubscribes.push(
       onSnapshot(
-        commentsQuery,
-        (snapshot) => {
-          setUserComments(
-            snapshot.docs.map((docSnapshot) => {
-              const parentPostId = docSnapshot.ref.parent.parent?.id || "";
-              return {
-                id: docSnapshot.id,
-                postId: parentPostId,
-                ...docSnapshot.data(),
-              };
-            })
-          );
+        query(
+          collectionGroup(db, "comments"),
+          where("authorId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+          limit(5)
+        ),
+        async (snap) => {
+          const list = [];
+
+          for (const docSnap of snap.docs) {
+            const postId = docSnap.ref.parent.parent?.id;
+            if (!postId) {
+              // 🔥 상위 게시물이 삭제되었다면 이 댓글도 제거
+              await deleteDoc(docSnap.ref);
+              continue;
+            }
+
+            list.push({
+              id: docSnap.id,
+              postId,
+              ...docSnap.data(),
+            });
+          }
+
+          setUserComments(list);
           markReady("comments");
         },
-        (error) => {
-          console.warn("댓글 이력 조회 실패", error);
-          markReady("comments");
-        }
+        () => markReady("comments")
       )
     );
 
-    // 알림
-    const notificationsQuery = query(
-      collection(db, "users", user.uid, "notifications"),
-      orderBy("createdAt", "desc"),
-      limit(6)
-    );
-    unsubscribeList.push(
+    /* --- 알림 --- */
+    unsubscribes.push(
       onSnapshot(
-        notificationsQuery,
-        (snapshot) => {
+        query(
+          collection(db, "users", user.uid, "notifications"),
+          orderBy("createdAt", "desc"),
+          limit(6)
+        ),
+        (snap) => {
           setNotifications(
-            snapshot.docs.map((docSnapshot) => ({
-              id: docSnapshot.id,
-              ...docSnapshot.data(),
-              read: docSnapshot.data().read === true,
+            snap.docs.map((d) => ({
+              id: d.id,
+              ...d.data(),
+              read: d.data().read === true,
             }))
           );
           markReady("notifications");
         },
-        (error) => {
-          console.warn("알림 정보를 조회하지 못했습니다.", error);
-          markReady("notifications");
-        }
+        () => markReady("notifications")
       )
     );
 
-    return () => {
-      unsubscribeList.forEach((unsubscribe) => unsubscribe());
-    };
+    return () => unsubscribes.forEach((u) => u());
   }, [user]);
 
-  // 헤더 알림 뱃지용
+  /* ---------------------------------------------------------
+     헤더 알림 뱃지 업데이트
+  ---------------------------------------------------------- */
   useEffect(() => {
     if (!user) {
       sessionStorage.setItem("seereal-has-notifications", "0");
       window.dispatchEvent(new Event("seereal-notification-update"));
       return;
     }
-    const hasUnread = notifications.some(
-      (notification) => notification.read !== true
-    );
-    sessionStorage.setItem(
-      "seereal-has-notifications",
-      hasUnread ? "1" : "0"
-    );
+
+    const hasUnread = notifications.some((n) => !n.read);
+    sessionStorage.setItem("seereal-has-notifications", hasUnread ? "1" : "0");
     window.dispatchEvent(new Event("seereal-notification-update"));
   }, [notifications, user]);
 
   const allLoading =
     user &&
-    Object.values(loadingSections).some((sectionLoading) => sectionLoading);
+    Object.values(loadingSections).some((loading) => loading);
 
   const joinDate = useMemo(() => {
     if (!user?.metadata?.creationTime) return "-";
@@ -227,131 +234,80 @@ function MyPage() {
     )}`;
   }, [user]);
 
-  const favoriteCards = useMemo(
+  const favoriteZoneList = useMemo(
     () =>
-      favoriteZoneIds.map((zoneId) => {
-        const meta = getZoneMeta(zoneId);
-        const nextStage =
-          meta?.timeline?.find((item) => item.status === "next")?.label ||
-          meta?.eta ||
-          "예정 정보 없음";
-        return {
-          id: zoneId,
-          zoneName: meta?.name || getZoneName(zoneId, zoneId),
-          stage: meta?.stageLabel || meta?.stage || "단계 정보 준비 중",
-          district: meta?.district || "관심 구역",
-          next: nextStage,
-        };
-      }),
+      favoriteZoneIds.map((zoneId, index) => ({
+        id: zoneId,
+        name: readableZoneName(zoneId),
+        order: index + 1,
+      })),
     [favoriteZoneIds]
   );
 
   const filteredNotifications = useMemo(
     () =>
       hideReadNotifications
-        ? notifications.filter((notification) => notification.read !== true)
+        ? notifications.filter((n) => !n.read)
         : notifications,
     [notifications, hideReadNotifications]
   );
 
+  /* ==========================================================
+     회원 탈퇴 처리
+  ========================================================== */
   const handleDeleteAccount = async () => {
     if (!user) return;
-
     const confirmDelete = window.confirm(
-      "정말 탈퇴하시겠습니까? 관심 구역과 게시글 기록이 모두 삭제됩니다."
+      "정말 탈퇴하시겠습니까? 작성한 게시글과 댓글이 모두 삭제됩니다."
     );
-    if (!confirmDelete) {
-      return;
-    }
+    if (!confirmDelete) return;
 
     setDeletingAccount(true);
     setAccountError("");
     const uid = user.uid;
 
     try {
-      const userDocRef = doc(db, "users", uid);
-      const notificationsRef = collection(db, "users", uid, "notifications");
-      const favoritesRef = collection(db, "users", uid, "favorites");
-      const postsRef = collection(db, "posts");
+      /* ----------- 작성 게시글 삭제 ----------- */
+      const postsRef = query(
+        collection(db, "posts"),
+        where("authorId", "==", uid)
+      );
+      const postsSnap = await getDocs(postsRef);
 
-      const commentsAuthorQuery = query(
+      for (const post of postsSnap.docs) {
+        // 댓글도 포함 삭제
+        const commentsRef = collection(db, "posts", post.id, "comments");
+        const commentsSnap = await getDocs(commentsRef);
+        await Promise.all(commentsSnap.docs.map((c) => deleteDoc(c.ref)));
+
+        await deleteDoc(post.ref);
+      }
+
+      /* ----------- 내가 쓴 댓글 삭제 ----------- */
+      const commentQuery = query(
         collectionGroup(db, "comments"),
         where("authorId", "==", uid)
       );
-      const commentsUserQuery = query(
-        collectionGroup(db, "comments"),
-        where("userId", "==", uid)
-      );
+      const commentSnap = await getDocs(commentQuery);
 
-      const [
-        notificationsSnap,
-        favoritesSnap,
-        postsByAuthorSnap,
-        postsByUserSnap,
-        commentsByAuthorSnap,
-        commentsByUserSnap,
-      ] = await Promise.all([
-        getDocs(notificationsRef),
-        getDocs(favoritesRef),
-        getDocs(query(postsRef, where("authorId", "==", uid))),
-        getDocs(query(postsRef, where("userId", "==", uid))),
-        getDocs(commentsAuthorQuery),
-        getDocs(commentsUserQuery),
-      ]);
+      for (const c of commentSnap.docs) {
+        await deleteDoc(c.ref);
+      }
 
-      await Promise.all(
-        notificationsSnap.docs.map((docSnap) => deleteDoc(docSnap.ref))
+      /* ----------- 알림 삭제 ----------- */
+      const notifSnap = await getDocs(
+        collection(db, "users", uid, "notifications")
       );
+      await Promise.all(notifSnap.docs.map((n) => deleteDoc(n.ref)));
 
-      const deletedPostIds = new Set();
-      await Promise.all(
-        postsByAuthorSnap.docs.map((docSnap) => {
-          deletedPostIds.add(docSnap.id);
-          return deleteDoc(docSnap.ref);
-        })
-      );
-      await Promise.all(
-        postsByUserSnap.docs.map((docSnap) => {
-          if (deletedPostIds.has(docSnap.id)) {
-            return Promise.resolve();
-          }
-          deletedPostIds.add(docSnap.id);
-          return deleteDoc(docSnap.ref);
-        })
-      );
-
-      const deletedCommentPaths = new Set();
-      await Promise.all(
-        commentsByAuthorSnap.docs.map((docSnap) => {
-          deletedCommentPaths.add(docSnap.ref.path);
-          return deleteDoc(docSnap.ref);
-        })
-      );
-      await Promise.all(
-        commentsByUserSnap.docs.map((docSnap) => {
-          if (deletedCommentPaths.has(docSnap.ref.path)) {
-            return Promise.resolve();
-          }
-          deletedCommentPaths.add(docSnap.ref.path);
-          return deleteDoc(docSnap.ref);
-        })
-      );
-
-      await Promise.all(
-        favoritesSnap.docs.map((docSnap) => deleteDoc(docSnap.ref))
-      );
-
+      /* ----------- 유저 문서 제거 ----------- */
+      await deleteDoc(doc(db, "users", uid));
       await user.delete();
-      await deleteDoc(userDocRef);
 
       navigate("/", { replace: true });
-    } catch (deleteError) {
-      console.error("계정 삭제 실패", deleteError);
-      if (deleteError?.code === "auth/requires-recent-login") {
-        setAccountError("보안을 위해 다시 로그인한 뒤 탈퇴를 진행해 주세요.");
-      } else {
-        setAccountError("탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
-      }
+    } catch (err) {
+      console.error("탈퇴 실패:", err);
+      setAccountError("탈퇴 중 오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
       setDeletingAccount(false);
     }
@@ -360,59 +316,56 @@ function MyPage() {
   const handleNotificationClick = async (notification) => {
     if (!user) return;
     const target = notification?.targetUrl || "/community";
+
     try {
       if (!notification.read) {
-        const notifRef = doc(db, "users", user.uid, "notifications", notification.id);
-        await updateDoc(notifRef, { read: true });
-      setNotifications((prev) =>
-        prev.map((item) =>
-          item.id === notification.id ? { ...item, read: true } : item
-        )
-      );
+        await updateDoc(
+          doc(db, "users", user.uid, "notifications", notification.id),
+          { read: true }
+        );
+      }
+    } catch (err) {
+      console.warn("읽음 처리 오류", err);
     }
-  } catch (markError) {
-    console.warn("알림 읽음 처리에 실패했습니다.", markError);
-  } finally {
+
     navigate(target);
-  }
   };
 
-  const handleDeleteNotification = async (notificationId) => {
+  const handleDeleteNotification = async (id) => {
     if (!user) return;
     try {
-      const notifRef = doc(db, "users", user.uid, "notifications", notificationId);
-      await deleteDoc(notifRef);
-      setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+      await deleteDoc(doc(db, "users", user.uid, "notifications", id));
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
     } catch (err) {
-      console.error("알림을 삭제하지 못했습니다.", err);
+      console.error("알림 삭제 오류", err);
     }
   };
 
   const handleDeleteAllNotifications = async () => {
     if (!user) return;
-    const confirmClear = window.confirm("모든 알림을 삭제하시겠습니까?");
-    if (!confirmClear) return;
+    if (!window.confirm("모든 알림을 삭제할까요?")) return;
+
     try {
-      const notifRef = collection(db, "users", user.uid, "notifications");
-      const snap = await getDocs(notifRef);
-      await Promise.all(snap.docs.map((docSnap) => deleteDoc(docSnap.ref)));
+      const snap = await getDocs(
+        collection(db, "users", user.uid, "notifications")
+      );
+      await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
       setNotifications([]);
     } catch (err) {
-      console.error("알림 전체 삭제 실패", err);
+      console.error("알림 전체 삭제 오류", err);
     }
   };
 
-
-
+  /* ==========================================================
+     렌더링
+  ========================================================== */
   if (initializing || !user) {
     return (
       <div className="mypage-container">
         <section className="mypage-locked">
           <h2>회원 전용 페이지</h2>
-          <p>로그인 이후 마이페이지에서 개인화 정보를 확인할 수 있습니다.</p>
-          <button type="button" onClick={() => navigate("/login")}>
-            로그인으로 이동
-          </button>
+          <p>로그인 이후 접근할 수 있습니다.</p>
+          <button onClick={() => navigate("/login")}>로그인</button>
         </section>
       </div>
     );
@@ -420,9 +373,10 @@ function MyPage() {
 
   return (
     <div className="mypage-container">
+      {/* --- 프로필 카드 --- */}
       <section className="profile-card">
         <div className="profile-info">
-          <img src={profileAvatar} alt="회원 프로필" />
+          <img src={profileAvatar} alt="profile" />
           <div>
             <p className="profile-label">SEE:REAL MEMBER</p>
             <h1>{user.displayName || "회원"}</h1>
@@ -433,24 +387,25 @@ function MyPage() {
             </div>
           </div>
         </div>
+
         <div className="profile-actions">
-          <button type="button" onClick={() => navigate("/account-settings")}>
+          <button onClick={() => navigate("/account-settings")}>
             계정 관리
           </button>
-          <button type="button" className="outline" onClick={logout}>
+          <button className="outline" onClick={logout}>
             로그아웃
           </button>
           <button
-            type="button"
             className="danger"
             onClick={handleDeleteAccount}
             disabled={deletingAccount}
           >
-            {deletingAccount ? "탈퇴 처리 중..." : "탈퇴하기"}
+            {deletingAccount ? "탈퇴 중..." : "탈퇴하기"}
           </button>
         </div>
       </section>
 
+      {/* --- 간단 통계 --- */}
       <section className="quick-stats">
         <div>
           <strong>{favoriteZoneIds.length}</strong>
@@ -470,104 +425,68 @@ function MyPage() {
         </div>
       </section>
 
-      {notificationPrefs && notificationPrefs.enabled === false && (
-        <div className="notification-banner">
-          <p>
-            관심 구역 알림이 꺼져 있습니다. 단계 변경 안내를 받으려면 알림 설정을 켜 주세요.
-          </p>
-          <button type="button" onClick={() => navigate("/account-settings")}>
-            알림 설정으로 이동
-          </button>
-        </div>
-      )}
-
-      {accountError && <div className="mypage-alert-error">{accountError}</div>}
-
+      {/* --- 관심 구역 --- */}
       <section className="mypage-section">
         <div className="section-heading">
           <div>
-            <p className="section-label">관심 구역</p>
-            <h2>내가 등록한 정비구역</h2>
+            <p className="section-label">나의 관심 구역</p>
+            <h2>즐겨찾은 정비/단지 목록</h2>
           </div>
           <button type="button" onClick={() => navigate("/process")}>
-            구역 찾기
+            지도에서 보기
           </button>
         </div>
 
-        {allLoading ? (
-          <div className="section-skeleton">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <div key={`favorite-skeleton-${index}`} className="skeleton-card">
-                <div className="skeleton-line title" />
-                <div className="skeleton-line" />
-                <div className="skeleton-line short" />
-              </div>
-            ))}
-          </div>
-        ) : favoriteCards.length === 0 ? (
-          <div className="section-empty">
-            아직 등록된 관심 구역이 없습니다. 지도 또는 상세 페이지에서
-            북마크를 추가해 주세요.
-          </div>
+        {favoriteZoneList.length === 0 ? (
+          <p className="section-empty">
+            아직 관심 구역이 없습니다. 지도에서 마음에 드는 구역을 등록해 보세요.
+          </p>
         ) : (
           <div className="favorite-grid">
-            {favoriteCards.map((fav) => (
-              <button
-                type="button"
-                key={fav.id}
-                className="favorite-card"
-                onClick={() => navigate(`/community/${fav.id}`)}
-              >
+            {favoriteZoneList.map((zone) => (
+              <div className="favorite-card" key={`${zone.id}-${zone.order}`}>
                 <div className="favorite-card-header">
-                  <p>{fav.zoneName}</p>
-                  <span>{fav.district}</span>
+                  <span># {zone.order}</span>
+                  <span>ID: {zone.id || "정보 없음"}</span>
                 </div>
-                <p className="favorite-stage">{fav.stage}</p>
+                <p className="favorite-stage">{zone.name}</p>
                 <div className="favorite-meta">
                   <div>
-                    <span>다음 일정</span>
-                    <strong>{fav.next}</strong>
+                    <span>알림 상태</span>
+                    <strong>
+                      {notificationPrefs?.enabled ? "ON" : "OFF"}
+                    </strong>
                   </div>
                   <div>
-                    <span>업데이트</span>
-                    <strong>지도에서 관리</strong>
+                    <span>등록 순서</span>
+                    <strong>{zone.order}</strong>
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}
       </section>
 
+      {/* --- 내가 쓴 글 --- */}
       <section className="mypage-section">
         <div className="section-heading">
           <div>
             <p className="section-label">커뮤니티 활동</p>
             <h2>내 게시글과 댓글 이력</h2>
           </div>
-          <Link to="/community">커뮤니티 전체 보기</Link>
+          <Link to="/community">전체 보기</Link>
         </div>
 
         <div className="activity-grid">
-          {/* 작성한 게시글 */}
+          {/* 게시글 */}
           <div className="activity-column">
             <div className="activity-header">
               <h3>작성한 게시글</h3>
-              {userPosts.length > 0 && (
-                <button type="button" onClick={() => navigate("/community")}>
-                  더보기
-                </button>
-              )}
             </div>
-            {allLoading ? (
-              <div className="activity-skeleton">
-                <div className="skeleton-line title" />
-                <div className="skeleton-line" />
-              </div>
-            ) : userPosts.length === 0 ? (
-              <p className="section-empty small">
-                아직 작성한 글이 없습니다. 커뮤니티에서 질문을 남겨보세요.
-              </p>
+
+            {userPosts.length === 0 ? (
+              <p className="section-empty small">작성한 글이 없습니다.</p>
             ) : (
               userPosts.slice(0, 3).map((post) => (
                 <Link
@@ -578,7 +497,7 @@ function MyPage() {
                   <div>
                     <p className="activity-title">{post.title}</p>
                     <span className="activity-meta">
-                      {getZoneName(post.zoneId, "구역 미지정")} ·{" "}
+                      {readableZoneName(post.zoneId)} ·{" "}
                       {formatDateTime(post.createdAt)}
                     </span>
                   </div>
@@ -590,25 +509,14 @@ function MyPage() {
             )}
           </div>
 
-          {/* 작성한 댓글 */}
+          {/* 댓글 */}
           <div className="activity-column">
             <div className="activity-header">
               <h3>작성한 댓글</h3>
-              {userComments.length > 0 && (
-                <button type="button" onClick={() => navigate("/community")}>
-                  더보기
-                </button>
-              )}
             </div>
-            {allLoading ? (
-              <div className="activity-skeleton">
-                <div className="skeleton-line title" />
-                <div className="skeleton-line" />
-              </div>
-            ) : userComments.length === 0 ? (
-              <p className="section-empty small">
-                아직 댓글을 작성하지 않았습니다. 궁금한 점을 남겨보세요.
-              </p>
+
+            {userComments.length === 0 ? (
+              <p className="section-empty small">댓글이 없습니다.</p>
             ) : (
               userComments.slice(0, 3).map((comment) => (
                 <Link
@@ -622,7 +530,9 @@ function MyPage() {
                       {formatDateTime(comment.createdAt, true)}
                     </span>
                   </div>
-                  <span className="activity-badge subtle">댓글 보기</span>
+                  <span className="activity-badge subtle">
+                    댓글 보기
+                  </span>
                 </Link>
               ))
             )}
@@ -630,59 +540,59 @@ function MyPage() {
         </div>
       </section>
 
+      {/* --- 알림 --- */}
       <section className="mypage-section">
         <div className="section-heading">
           <div>
             <p className="section-label">알림 모음</p>
             <h2>단계 변화 · 댓글 알림</h2>
           </div>
+
           <div className="notification-actions">
-            <button type="button" onClick={() => navigate("/account-settings")}>
+            <button onClick={() => navigate("/account-settings")}>
               알림 설정
             </button>
+
             {notifications.length > 0 && (
               <label className="notification-toggle">
                 <input
                   type="checkbox"
                   checked={hideReadNotifications}
-                  onChange={() => setHideReadNotifications((prev) => !prev)}
+                  onChange={() =>
+                    setHideReadNotifications((prev) => !prev)
+                  }
                 />
                 읽은 알림 숨기기
               </label>
             )}
+
             {notifications.length > 0 && (
-              <button type="button" className="danger" onClick={handleDeleteAllNotifications}>
+              <button
+                className="danger"
+                onClick={handleDeleteAllNotifications}
+              >
                 전체 삭제
               </button>
             )}
           </div>
         </div>
 
-        {allLoading ? (
-          <div className="activity-skeleton">
-            <div className="skeleton-line title" />
-            <div className="skeleton-line" />
-          </div>
-        ) : filteredNotifications.length === 0 ? (
+        {filteredNotifications.length === 0 ? (
           <div className="section-empty">
             {hideReadNotifications
-              ? "읽지 않은 알림이 없습니다. 관심 구역 변화를 기다려 주세요."
-              : "아직 수신한 알림이 없습니다. 관심 구역을 등록하고 댓글 알림을 설정해보세요."}
+              ? "읽지 않은 알림이 없습니다."
+              : "아직 받은 알림이 없습니다."}
           </div>
         ) : (
           <div className="notification-list">
             {filteredNotifications.map((notification) => (
               <div
                 key={notification.id}
-                className={`notification-item${notification.read ? " read" : ""}`}
+                className={`notification-item${
+                  notification.read ? " read" : ""
+                }`}
                 role="button"
-                tabIndex={0}
                 onClick={() => handleNotificationClick(notification)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    handleNotificationClick(notification);
-                  }
-                }}
               >
                 <div>
                   <p className="notification-title">
@@ -693,12 +603,13 @@ function MyPage() {
                   </p>
                 </div>
                 <div className="notification-meta">
-                  <span>{formatDateTime(notification.createdAt, true)}</span>
+                  <span>
+                    {formatDateTime(notification.createdAt, true)}
+                  </span>
                   <button
-                    type="button"
                     className="notification-delete"
-                    onClick={(event) => {
-                      event.stopPropagation();
+                    onClick={(e) => {
+                      e.stopPropagation();
                       handleDeleteNotification(notification.id);
                     }}
                   >

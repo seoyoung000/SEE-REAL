@@ -1,5 +1,5 @@
 // src/pages/AccountSettings.js
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { updateProfile } from "firebase/auth";
 import {
@@ -14,7 +14,7 @@ import {
 } from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/config";
-import { DEFAULT_ZONE_SLUG, getZoneName } from "../utils/zones";
+import { DEFAULT_ZONE_SLUG } from "../utils/zones";
 import { sendStageNotification } from "../services/notificationService";
 import "./AccountSettings.css";
 
@@ -144,15 +144,6 @@ function AccountSettings() {
     setChannelWarning("");
     setNotifySMS((prev) => !prev);
   };
-
-  const favoriteZoneLabels = useMemo(
-    () =>
-      favoriteZones.map((z) => ({
-        id: z,
-        name: getZoneName(z, z),
-      })),
-    [favoriteZones]
-  );
 
   const buildNotificationPayload = (hasPhone) => ({
     enabled: notificationEnabled,
@@ -379,31 +370,6 @@ function AccountSettings() {
         </form>
       </section>
 
-      {/* 관심 구역 */}
-      <section className="account-card">
-        <div className="account-section-heading">
-          <div>
-            <p className="account-label">관심 구역</p>
-            <h2>저장된 구역</h2>
-          </div>
-          <button onClick={() => navigate("/")}>지도에서 찾기</button>
-        </div>
-
-        {favoriteZoneLabels.length === 0 ? (
-          <div className="favorite-placeholder">
-            아직 등록된 구역이 없습니다.
-          </div>
-        ) : (
-          <ul className="favorite-zone-list">
-            {favoriteZoneLabels.map((z) => (
-              <li key={z.id}>
-                <strong>{z.name}</strong>
-                <span>{z.id}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
     </div>
   );
 }

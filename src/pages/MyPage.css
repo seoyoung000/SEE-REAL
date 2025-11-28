@@ -212,12 +212,15 @@
 }
 
 .favorite-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display: flex;
   gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 6px;
 }
 
 .favorite-card {
+  flex: 0 0 320px;
+  width: 320px;
   border-radius: 18px;
   border: 1px solid #dfe4ec;
   padding: 18px;
