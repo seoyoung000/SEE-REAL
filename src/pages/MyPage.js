@@ -6,6 +6,7 @@ import {
   collectionGroup,
   deleteDoc,
   doc,
+  arrayRemove,
   getDocs,
   limit,
   onSnapshot,
@@ -24,16 +25,55 @@ import "./MyPage.css";
 const FIXED_ZONES = [
   { slug: "hannam-masterplan", name: "한남 지구단위계획구역" },
   { slug: "itaewon-masterplan", name: "이태원로 주변 지구단위계획구역" },
-  { slug: "hannam-foreigner", name: "한남외인주택부지" },
+  { slug: "hannam-foreigner", name: "한남외인주택부지 지구단위계획구역" },
   { slug: "hannam3-redev", name: "한남3재정비촉진구역" },
-  { slug: "hannam4-redev", name: "한남4재정비촉진구역" },
-  { slug: "hannam5-redev", name: "한남5재정비촉진구역" },
+  { slug: "hannam4-redev", name: "한남4재정비촉진구역 지구단위계획구역" },
+  { slug: "hannam5-redev", name: "한남5재정비촉진구역 지구단위계획구역" },
 ];
 
-const readableZoneName = (slug) =>
-  FIXED_ZONES.find((z) => z.slug === slug)?.name || "구역 미지정";
+const readableZoneName = (id) => {
+  if (!id) return "구역 미지정";
+  const normalizedId = id.replace(/\s+/g, "").toLowerCase();
+  const matched = FIXED_ZONES.find((zone) => {
+    const normalizedSlug = zone.slug
+      .replace(/\s+/g, "")
+      .toLowerCase();
+    const normalizedName = zone.name
+      .replace(/\s+/g, "")
+      .toLowerCase();
+    return (
+      normalizedSlug === normalizedId ||
+      normalizedName === normalizedId ||
+      normalizedSlug.includes(normalizedId) ||
+      normalizedId.includes(normalizedSlug) ||
+      normalizedName.includes(normalizedId) ||
+      normalizedId.includes(normalizedName)
+    );
+  });
+  return matched?.name || id;
+};
 
 /* ------------------------------------------- */
+
+const normalizeForComparison = (value = "") =>
+  value.toString().replace(/\s+/g, "").toLowerCase();
+
+const DETAIL_ALLOWED_TOKENS = [
+  "한남제3재정비촉진구역주택재개발정비사업조합",
+  "한남3재정비촉진구역",
+  "한남제3재정비촉진구역",
+];
+
+const NORMALIZED_DETAIL_ALLOWED_TOKENS = DETAIL_ALLOWED_TOKENS.map(
+  normalizeForComparison
+);
+
+const isFavoriteDetailAllowed = (zoneId, zoneName) => {
+  const target = normalizeForComparison(`${zoneId || ""} ${zoneName || ""}`);
+  return NORMALIZED_DETAIL_ALLOWED_TOKENS.some((token) =>
+    target.includes(token)
+  );
+};
 
 const formatDateTime = (timestamp, withTime = false) => {
   if (!timestamp) return "-";
@@ -236,13 +276,22 @@ function MyPage() {
 
   const favoriteZoneList = useMemo(
     () =>
-      favoriteZoneIds.map((zoneId, index) => ({
-        id: zoneId,
-        name: readableZoneName(zoneId),
-        order: index + 1,
-      })),
+      favoriteZoneIds.map((zoneId, index) => {
+        const name = readableZoneName(zoneId);
+        return {
+          id: zoneId,
+          name,
+          order: index + 1,
+          allowDetail: isFavoriteDetailAllowed(zoneId, name),
+        };
+      }),
     [favoriteZoneIds]
   );
+
+  const handleFavoriteCardClick = (zone) => {
+    if (!zone.allowDetail) return;
+    navigate(`/calculator/${zone.id || zone.name}`);
+  };
 
   const filteredNotifications = useMemo(
     () =>
@@ -251,6 +300,22 @@ function MyPage() {
         : notifications,
     [notifications, hideReadNotifications]
   );
+
+  const handleRemoveFavorite = async (zoneId) => {
+    if (!user || !zoneId) return;
+    const confirmRemove = window.confirm("해당 관심 구역을 삭제할까요?");
+    if (!confirmRemove) return;
+
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        favoriteZones: arrayRemove(zoneId),
+      });
+    } catch (error) {
+      console.error("관심 구역 삭제 실패:", error);
+      alert("관심 구역을 삭제하지 못했습니다. 다시 시도해 주세요.");
+    }
+  };
 
   /* ==========================================================
      회원 탈퇴 처리
@@ -444,10 +509,25 @@ function MyPage() {
         ) : (
           <div className="favorite-grid">
             {favoriteZoneList.map((zone) => (
-              <div className="favorite-card" key={`${zone.id}-${zone.order}`}>
+              <div
+                className={`favorite-card${
+                  zone.allowDetail ? " clickable" : ""
+                }`}
+                key={`${zone.id}-${zone.order}`}
+                onClick={() => handleFavoriteCardClick(zone)}
+              >
                 <div className="favorite-card-header">
                   <span># {zone.order}</span>
-                  <span>ID: {zone.id || "정보 없음"}</span>
+                  <button
+                    type="button"
+                    className="favorite-remove"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveFavorite(zone.id);
+                    }}
+                  >
+                    삭제
+                  </button>
                 </div>
                 <p className="favorite-stage">{zone.name}</p>
                 <div className="favorite-meta">
@@ -456,10 +536,6 @@ function MyPage() {
                     <strong>
                       {notificationPrefs?.enabled ? "ON" : "OFF"}
                     </strong>
-                  </div>
-                  <div>
-                    <span>등록 순서</span>
-                    <strong>{zone.order}</strong>
                   </div>
                 </div>
               </div>

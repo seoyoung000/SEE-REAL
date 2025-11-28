@@ -87,6 +87,9 @@ function InfoPanel({ type = "zone", data, onClose }) {
         simpleKey.includes(zoneName) ||
         zoneName.includes(simpleKey)
     );
+  const detailButtonLabel =
+    (panelData.name || panelData.note || panelData.id || "").toString();
+  const isHanNam3Project = detailButtonLabel.includes("한남3");
 
   const complexNameKey = useMemo(
     () => normalizeDealKey(panelData.name || ""),
@@ -324,9 +327,11 @@ function InfoPanel({ type = "zone", data, onClose }) {
           </div>
         )}
         <div className="infoPanel-actions">
-          <button className="view-details-btn" onClick={handleViewDetails}>
-            자세히 보기
-          </button>
+          {isHanNam3Project && (
+            <button className="view-details-btn" onClick={handleViewDetails}>
+              자세히 보기
+            </button>
+          )}
           <button
             type="button"
             className="favorite-btn"
@@ -454,9 +459,11 @@ function InfoPanel({ type = "zone", data, onClose }) {
           )}
         </div>
 
-        <button className="view-details-btn" onClick={handleViewDetails}>
-          자세히 보기
-        </button>
+        {isHanNam3Project && (
+          <button className="view-details-btn" onClick={handleViewDetails}>
+            자세히 보기
+          </button>
+        )}
         <button
           type="button"
           className="favorite-btn"

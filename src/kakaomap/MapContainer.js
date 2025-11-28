@@ -63,6 +63,15 @@ const geoJsonColors = {
 const normalizeComplexKey = (value = "") =>
   value.toString().replace(/\s+/g, "").toLowerCase();
 
+const FIXED_ZONE_KEYWORDS = [
+  "한남 지구단위계획구역",
+  "이태원로 주변 지구단위계획구역",
+  "한남외인주택부지 지구단위계획구역",
+  "한남4재정비촉진구역 지구단위계획구역",
+  "한남5재정비촉진구역 지구단위계획구역",
+  "한남3재정비촉진구역",
+];
+
 const AREA_KEYS = ["area", "AREA", "land_area", "plan_area", "DGM_AR", "SHAPE_AREA"];
 const HOUSEHOLD_KEYS = [
   "households",
@@ -292,6 +301,13 @@ useEffect(() => {
     const term = keyword.trim();
     if (!term) return alert("이름을 입력하세요");
     const norm = normalize(term);
+    const aliasKeyword = FIXED_ZONE_KEYWORDS.find((keyword) => {
+      const normalizedKeyword = normalize(keyword);
+      return (
+        normalizedKeyword.includes(norm) ||
+        norm.includes(normalizedKeyword)
+      );
+    });
 
     // 1) 단지 검색
     const matchMarker = complexMarkers.find((m) =>
@@ -308,17 +324,35 @@ useEffect(() => {
     }
 
     // 2) JSON polygon 검색
-    const matchPoly = polygonList.find((p) =>
-      normalize(p.name || p.note).includes(norm)
-    );
+    const basePoly = polygonList.find((p) => {
+      const normalizedName = normalize(p.name || p.note);
+      return (
+        normalizedName.includes(norm) || norm.includes(normalizedName)
+      );
+    });
+
+    const aliasPoly =
+      !basePoly && aliasKeyword
+        ? polygonList.find((p) =>
+            normalize(p.name || p.note).includes(
+              normalize(aliasKeyword)
+            )
+          )
+        : null;
+
+    const matchPoly = aliasPoly || basePoly;
 
     if (matchPoly && Array.isArray(matchPoly.polygons)) {
       const firstPoly = matchPoly.polygons[0];
 
       const path = firstPoly.map(([lng, lat]) => ({ lat, lng }));
       const centroid = {
-        lat: firstPoly.reduce((sum, [, lat]) => sum + lat, 0) / firstPoly.length,
-        lng: firstPoly.reduce(([lngSum], [lng]) => lngSum + lng, 0) / firstPoly.length,
+        lat:
+          firstPoly.reduce((sum, [, lat]) => sum + lat, 0) /
+          firstPoly.length,
+        lng:
+          firstPoly.reduce((sum, [lng]) => sum + lng, 0) /
+          firstPoly.length,
       };
 
       const resolvedArea = toNumberOrNull(getValueFromKeys(matchPoly, AREA_KEYS));
@@ -342,6 +376,62 @@ useEffect(() => {
       setPanelType("zone");
       setIsOpen(true);
       setMapCenter(centroid);
+      setMapLevel(4);
+      return;
+    }
+
+    const baseGeo = geoJsonPolygons.find((poly) => {
+      const normalizedName = normalize(poly.name);
+      return (
+        normalizedName.includes(norm) || norm.includes(normalizedName)
+      );
+    });
+
+    const aliasGeo =
+      !baseGeo && aliasKeyword
+        ? geoJsonPolygons.find((poly) =>
+            normalize(poly.name).includes(normalize(aliasKeyword))
+          )
+        : null;
+
+    const matchGeo = aliasGeo || baseGeo;
+
+    if (matchGeo) {
+      const props = matchGeo.properties || {};
+      const resolvedArea = toNumberOrNull(getValueFromKeys(props, AREA_KEYS));
+      const resolvedHouseholds = toNumberOrNull(
+        getValueFromKeys(props, HOUSEHOLD_KEYS)
+      );
+      const resolvedType =
+        getValueFromKeys(props, TYPE_KEYS) || "정비구역";
+      const resolvedStage = getValueFromKeys(props, STAGE_KEYS);
+      const resolvedName = getValueFromKeys(props, NAME_KEYS) || matchGeo.name;
+      const resolvedNote = props?.description || resolvedName;
+
+      setPanelType("zone");
+      setPanelData({
+        id: matchGeo.id,
+        name: resolvedName,
+        area: resolvedArea,
+        type: resolvedType,
+        stage: resolvedStage,
+        households: resolvedHouseholds,
+        note: resolvedNote,
+        coords: matchGeo.path,
+        rawProperties: props,
+        typeLabel: "geojson",
+      });
+      setIsOpen(true);
+      if (matchGeo.path && matchGeo.path.length > 0) {
+        const centerPoint = matchGeo.path.reduce(
+          (acc, point) => ({
+            lat: acc.lat + point.lat / matchGeo.path.length,
+            lng: acc.lng + point.lng / matchGeo.path.length,
+          }),
+          { lat: 0, lng: 0 }
+        );
+        setMapCenter(centerPoint);
+      }
       setMapLevel(4);
       return;
     }

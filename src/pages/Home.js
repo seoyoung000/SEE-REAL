@@ -1,18 +1,16 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import heroImage from "../home.png"; // ★ 이미지 import (경로 확인해주세요)
 import "./Home.css";
 
-// 1. 슬라이더 데이터 (좌표 수정됨)
-// ... 기존 import 문 ...
-
+// 1. 슬라이더 데이터
 const PREVIEW_ZONES = [
   {
     id: 1,
     name: "용산구 한남동 한남3구역",
     status: "관리처분 인가 완료",
     progress: 88,
-    // top을 50%로 설정하여 정중앙 높이에 배치
     mapPosition: { top: '50%', left: '40%' } 
   },
   {
@@ -20,7 +18,6 @@ const PREVIEW_ZONES = [
     name: "이태원로 주변 지구단위계획구역",
     status: "지구단위계획 수립 심의 중",
     progress: 35,
-    // top을 75%로 설정하여 하단부에 배치
     mapPosition: { top: '75%', left: '65%' } 
   },
   {
@@ -28,13 +25,11 @@ const PREVIEW_ZONES = [
     name: "한남5재정비촉진구역 지구단위계획구역",
     status: "건축심의 통과",
     progress: 62,
-    // top을 60%로 설정하여 약간 아래쪽에 배치
     mapPosition: { top: '60%', left: '50%' } 
   }
 ];
 
-// ... 이하 Home 컴포넌트 코드 동일 ...
-// 하단 프로세스 데이터 (기존 유지)
+// 하단 프로세스 데이터
 const PROCESS_STEPS = [
   { step: 1, title: "정비구역 지정", desc: "주민 공람 및 구의회 의견 청취", sub: "• 법적 요건 검토 필요\n• 평균 6~12개월 소요" },
   { step: 2, title: "조합 설립", desc: "토지등소유자 75% 동의 확보", sub: "• 동의율 달성 핵심\n• 창립총회 개최" },
@@ -64,12 +59,11 @@ function Home() {
     setCurrentZoneIndex((prev) => (prev - 1 + PREVIEW_ZONES.length) % PREVIEW_ZONES.length);
   };
 
-  // 현재 선택된 데이터
   const currentZone = PREVIEW_ZONES[currentZoneIndex];
 
   return (
     <div className="home-container">
-      {/* Hero Section (기존 동일) */}
+      {/* Hero Section */}
       <section className="hero-section">
         <div className="hero-content">
           <h1>주거 환경 정비 사업,<br />SEE:REAL을 통해 더 쉽게 참여하세요</h1>
@@ -80,16 +74,19 @@ function Home() {
             </button>
           </form>
         </div>
+        
         <div className="hero-illustration">
-          <div className="map-circle-bg">
+          {/* ★ 배경 이미지가 적용된 부분 */}
+          <div className="map-circle-bg" style={{ backgroundImage: `url(${heroImage})` }}>
             <div className="map-dummy-visual">
+              {/* 이미지가 배경에 깔리므로 핀들은 유지하거나, 필요 없으면 삭제해도 됩니다 */}
               <div className="pin p1"></div><div className="pin p2"></div><div className="pin p3"></div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Map Preview Section (수정됨) */}
+      {/* Map Preview Section */}
       <section className="feature-section map-preview">
         <div className="feature-container">
           <div className="text-group">
@@ -117,7 +114,6 @@ function Home() {
                 <span className="card-label">관심 구역 바로 보기</span>
               </div>
 
-              {/* 동적 텍스트 영역 */}
               <h3>{currentZone.name}</h3>
               <p className="card-status">{currentZone.status}</p>
               
@@ -126,17 +122,14 @@ function Home() {
               </div>
               <div className="progress-text">{currentZone.progress}%</div>
 
-              {/* 미니맵 & 동적 핀 영역 */}
               <div className="mini-map-box">
                 <div className="map-pins-container">
-                  {/* 모든 구역의 핀을 렌더링하되, 현재 인덱스인 것만 active 클래스 부여 */}
                   {PREVIEW_ZONES.map((zone, idx) => (
                     <div
                       key={zone.id}
                       className={`map-pin-dot ${idx === currentZoneIndex ? 'active' : ''}`}
                       style={{ top: zone.mapPosition.top, left: zone.mapPosition.left }}
                     >
-                      {/* 활성화된 핀 위에 툴팁처럼 이름 표시 (선택사항) */}
                       {idx === currentZoneIndex && <span className="pin-tooltip">{idx + 1}</span>}
                     </div>
                   ))}
@@ -149,9 +142,8 @@ function Home() {
         </div>
       </section>
 
-      {/* Finance & Process Section (기존 동일) */}
+      {/* Finance Section */}
       <section className="feature-section finance-info">
-         {/* ... (이전 코드와 동일, 생략 가능하면 생략하거나 그대로 유지) ... */}
          <div className="feature-container vertical">
           <div className="section-header-center">
             <h2>중장년층의 눈높이에 맞춰<br />가장 중요한 정보만, 가장 알기 쉽게</h2>
@@ -186,6 +178,7 @@ function Home() {
         </div>
       </section>
 
+      {/* Process Section */}
       <section className="feature-section process-flow">
         <div className="feature-container vertical">
           <div className="section-header-left">
