@@ -1,6 +1,7 @@
 // src/App.js
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./pages/Home";
 import MyPage from "./pages/MyPage";
 import "./App.css";
@@ -28,6 +29,7 @@ function FeaturePlaceholder({ title, description }) {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Header />
       <main className="app-main">
         <Routes>

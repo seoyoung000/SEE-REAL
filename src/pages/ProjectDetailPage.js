@@ -228,7 +228,7 @@ function ProjectDetailPage() {
         <h1>사업 분석</h1>
         <p>자세한 정보를 보려면 지도에서 관심 구역을 선택해 주세요.</p>
         <Link to="/process" style={{display: 'block', marginTop: '20px', fontSize: '16px', color: '#2268a0'}}>
-            ← 절차 안내로
+            ← 지도 보기로
         </Link>
       </div>
     );
@@ -443,7 +443,7 @@ function ProjectDetailPage() {
       </div>
 
       <Link to="/process" style={{display: 'block', textAlign: 'center', marginTop: '40px', fontSize: '16px', color: '#2268a0'}}>
-        ← 절차 안내로
+        ← 지도 보기로
       </Link>
     </div>
   );

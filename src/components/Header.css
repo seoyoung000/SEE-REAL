@@ -12,12 +12,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 40px;
-  gap: 24px;
+  padding: 12px 24px;
+  gap: 18px;
   transition: transform 0.3s ease, opacity 0.3s ease, max-height 0.3s ease,
     padding 0.3s ease;
   background: #fff;
-  max-height: 140px;
+  max-height: 120px;
   overflow: hidden;
 }
 
@@ -46,12 +46,6 @@
   flex-direction: column;
 }
 
-.header-center {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-}
-
 .header-logo {
   font-size: 26px;
   font-weight: 800;
@@ -71,45 +65,6 @@
   justify-content: flex-end;
   align-items: center;
   gap: 12px;
-}
-
-.header-search {
-  position: relative;
-  width: 100%;
-  max-width: 360px;
-}
-
-.header-search input {
-  border-radius: 999px;
-  border: 1px solid #d7dee2;
-  padding: 12px 48px 12px 18px;
-  font-size: 15px;
-  width: 100%;
-}
-
-.header-search input:focus {
-  outline: none;
-  border-color: #2268a0;
-  box-shadow: 0 0 0 2px rgba(34, 104, 160, 0.15);
-}
-
-.header-search button {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: none;
-  background: none;
-  cursor: pointer;
-  padding: 4px;
-  color: #1f2a37;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.search-icon {
-  font-size: 24px;
 }
 
 .header-guest {
@@ -208,9 +163,9 @@
 
 .nav-bar {
   border-top: 1px solid #f1f1f1;
-  padding: 12px 40px;
+  padding: 10px 24px;
   display: flex;
-  gap: 32px;
+  gap: 24px;
   justify-content: center;
   align-items: center;
   flex-wrap: wrap;

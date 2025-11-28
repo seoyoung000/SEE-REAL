@@ -4,6 +4,11 @@
   padding-bottom: 80px;
 }
 
+.app-main--full {
+  padding: 0;
+  min-height: auto;
+}
+
 .basic-page {
   min-height: calc(100vh - 160px);
   display: flex;

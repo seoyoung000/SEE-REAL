@@ -1,36 +1,51 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Map, Polygon, MapMarker, useKakaoLoader } from "react-kakao-maps-sdk";
-import {
-  arrayRemove,
-  arrayUnion,
-  doc,
-  getDoc,
-  onSnapshot,
-  serverTimestamp,
-  updateDoc,
-} from "firebase/firestore";
-
-import hannamInfo from "../data/basic_info.json";
-import hannamStats from "../data/hannam_stats.json";
-import markersData from "../data/markers_with_stats.json";
-import { useAuth } from "../context/AuthContext";
-import { db } from "../firebase/config";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+} from "react";
+import { Map, Polygon, MapMarker } from "react-kakao-maps-sdk";
 import InfoPanel from "./InfoPanel";
 import "./InfoPanel.css";
 import "./MapContainer.css";
 
+import allRedevelopmentZones from "../data/all_redevelopment_zones.json";
+import zoneMarkersData from "../data/markers_with_stats.json";
+
+// 🔥 새 JSON 적용
+import polygons from "../data/hannam3_redevelopment_with_polygon.json";
+
+// ---------------------------
+// Kakao SDK Loader
+// ---------------------------
+let kakaoLoaderPromise = null;
+
+function loadKakaoSdk(appKey) {
+  if (!appKey) return Promise.reject();
+  if (window.kakao && window.kakao.maps) return Promise.resolve(window.kakao);
+  if (kakaoLoaderPromise) return kakaoLoaderPromise;
+
+  kakaoLoaderPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?autoload=false&appkey=${appKey}&libraries=services`;
+    script.onload = () => {
+      if (window.kakao && window.kakao.maps) {
+        window.kakao.maps.load(() => resolve(window.kakao));
+      } else {
+        reject(new Error("Kakao SDK loaded but window.kakao is missing"));
+      }
+    };
+    script.onerror = () => reject(new Error("Failed to load Kakao SDK"));
+    document.head.appendChild(script);
+  });
+
+  return kakaoLoaderPromise;
+}
+
 const kakaoAppKey = process.env.REACT_APP_KAKAO_APP_KEY;
 
-const hannamCenter = { lat: 37.5385, lng: 127.0039 };
-const HANNAM_ZONE_SLUG = "hannam-3";
-
-const hannamPath = [
-  { lat: hannamCenter.lat - 0.001, lng: hannamCenter.lng - 0.0015 },
-  { lat: hannamCenter.lat + 0.001, lng: hannamCenter.lng - 0.0015 },
-  { lat: hannamCenter.lat + 0.001, lng: hannamCenter.lng + 0.0015 },
-  { lat: hannamCenter.lat - 0.001, lng: hannamCenter.lng + 0.0015 },
-];
+const defaultCenter = { lat: 37.531, lng: 127.0039 };
 
 const getPolygonColor = (stage) => {
   switch (stage) {
@@ -45,414 +60,206 @@ const getPolygonColor = (stage) => {
   }
 };
 
-const polygonStyle = {
-  strokeWeight: 2,
-  strokeColor: getPolygonColor(hannamInfo.stage),
-  strokeOpacity: 0.8,
-  strokeStyle: "solid",
-  fillColor: getPolygonColor(hannamInfo.stage),
-  fillOpacity: 0.3,
-};
-
-function MapContainer({ title, height = "85vh" }) {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-
+// ======================================================
+//                 MAIN COMPONENT
+// ======================================================
+function MapContainer({ title, height }) {
+  const [kakaoReady, setKakaoReady] = useState(false);
+  const [zonesWithPolygons, setZonesWithPolygons] = useState([]);
   const [keyword, setKeyword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
   const [panelType, setPanelType] = useState("zone");
-  const [panelData, setPanelData] = useState(hannamInfo);
-  const [panelMeta, setPanelMeta] = useState({
-    favoriteId: HANNAM_ZONE_SLUG,
-    favoriteLabel: hannamInfo.note || "한남 제3재정비촉진구역",
-  });
-
-  const [mapCenter, setMapCenter] = useState(hannamCenter);
+  const [panelData, setPanelData] = useState({});
+  const [mapCenter, setMapCenter] = useState(defaultCenter);
   const [mapLevel, setMapLevel] = useState(5);
-  const [mapReady, setMapReady] = useState(false);
-
-  const [favoriteZoneIds, setFavoriteZoneIds] = useState([]);
-  const [favoriteSaving, setFavoriteSaving] = useState(false);
-  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [notificationPromptMessage, setNotificationPromptMessage] = useState("");
 
   const mapRef = useRef(null);
-  const initializedRef = useRef(false);
 
-  const [kakaoLoading, loaderError] = useKakaoLoader({
-    appkey: kakaoAppKey || "",
-    libraries: ["services"],
-  });
+  // ---------------------------
+  // Load Kakao SDK
+  // ---------------------------
+  useEffect(() => {
+    loadKakaoSdk(kakaoAppKey)
+      .then(() => setKakaoReady(true))
+      .catch((err) => console.error(err));
+  }, []);
 
+  // ---------------------------
+  // JSON 폴리곤 로드
+  // ---------------------------
+
+  const polygonList = useMemo(() => {
+    return Array.isArray(polygons?.features) ? polygons.features : [];
+  }, []);
+
+  // ---------------------------
+  // 단지 markers
+  // ---------------------------
   const complexMarkers = useMemo(() => {
-    if (!markersData) return [];
-    return Object.entries(markersData).map(([name, payload]) => ({
+    if (!zoneMarkersData) return [];
+    return Object.entries(zoneMarkersData).map(([name, v]) => ({
       name,
-      ...payload,
+      ...v,
     }));
   }, []);
 
-  const trendStats = useMemo(() => {
-    const sorted = [...hannamStats].sort((a, b) => {
-      if (a.year === b.year) return a.month - b.month;
-      return a.year - b.year;
-    });
-    return sorted.slice(-6);
-  }, []);
-
-  const overviewPoints = useMemo(
-    () =>
-      [
-        ...hannamPath,
-        ...complexMarkers.map((marker) => ({
-          lat: Number(marker.lat),
-          lng: Number(marker.lng),
-        })),
-      ].filter((p) => !Number.isNaN(p.lat) && !Number.isNaN(p.lng)),
-    [complexMarkers]
-  );
-
-  const overviewBounds = useMemo(() => {
-    if (!overviewPoints.length) return null;
-    return overviewPoints.reduce(
-      (acc, point) => ({
-        minLat: Math.min(acc.minLat, point.lat),
-        maxLat: Math.max(acc.maxLat, point.lat),
-        minLng: Math.min(acc.minLng, point.lng),
-        maxLng: Math.max(acc.maxLng, point.lng),
-      }),
-      {
-        minLat: Infinity,
-        maxLat: -Infinity,
-        minLng: Infinity,
-        maxLng: -Infinity,
-      }
-    );
-  }, [overviewPoints]);
-
-  const overviewCenter = useMemo(() => {
-    if (!overviewBounds) return hannamCenter;
-    return {
-      lat: (overviewBounds.minLat + overviewBounds.maxLat) / 2,
-      lng: (overviewBounds.minLng + overviewBounds.maxLng) / 2,
-    };
-  }, [overviewBounds]);
-
-  useEffect(() => {
-    if (!initializedRef.current && overviewCenter) {
-      setMapCenter(overviewCenter);
-      initializedRef.current = true;
-    }
-  }, [overviewCenter]);
-
-  // 관심 구역 실시간 구독
-  useEffect(() => {
-    if (!user) {
-      setFavoriteZoneIds([]);
-      return undefined;
-    }
-
-    const userRef = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(
-      userRef,
-      (snapshot) => {
-        const data = snapshot.data();
-        setFavoriteZoneIds(
-          Array.isArray(data?.favoriteZones) ? data.favoriteZones : []
-        );
-      },
-      (err) => {
-        console.error("관심 구역 구독 실패", err);
-        setFavoriteZoneIds([]);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user]);
-
-  const maxTrendPrice = useMemo(
-    () =>
-      trendStats.reduce((max, stat) => Math.max(max, stat.avg_price || 0), 0) ||
-      1,
-    [trendStats]
-  );
-
-  const formatPrice = (value) =>
-    value ? `${(value / 100000000).toFixed(1)}억` : "데이터 없음";
-
-  const totalComplexes = complexMarkers.length;
-  const totalDeals = complexMarkers.reduce(
-    (sum, complex) =>
-      sum + (Array.isArray(complex.deals) ? complex.deals.length : 0),
-    0
+  // ---------------------------
+  // 검색 함수
+  // ---------------------------
+  const normalize = useCallback(
+    (v) => v?.replace(/\s+/g, "").toLowerCase() || "",
+    []
   );
 
   const handleSearch = () => {
-    const searchTerm = keyword.trim().replace(/\s+/g, "");
-    if (!searchTerm) {
-      alert("검색할 아파트 이름을 입력해주세요.");
-      return;
-    }
+    const term = keyword.trim();
+    if (!term) return alert("이름을 입력하세요");
+    const norm = normalize(term);
 
-    const target = complexMarkers.find((marker) =>
-      marker.name.replace(/\s+/g, "").includes(searchTerm)
+    // 1) 단지 검색
+    const matchMarker = complexMarkers.find((m) =>
+      normalize(m.name).includes(norm)
     );
-    if (target) {
-      setMapCenter({ lat: target.lat, lng: target.lng });
-      setMapLevel(3);
+
+    if (matchMarker) {
+      setPanelData(matchMarker);
       setPanelType("complex");
-      setPanelData(target);
-      setPanelMeta(null);
       setIsOpen(true);
-    } else {
-      alert("검색된 단지가 없습니다.");
-    }
-  };
-
-  const handleResetCenter = () => {
-    if (window.kakao && mapRef.current && overviewPoints.length) {
-      const bounds = new window.kakao.maps.LatLngBounds();
-      overviewPoints.forEach((point) =>
-        bounds.extend(new window.kakao.maps.LatLng(point.lat, point.lng))
-      );
-      mapRef.current.setBounds(bounds, 60, 60, 60, 60);
-    }
-    setIsOpen(false);
-  };
-
-  const handleOpenZonePanel = () => {
-    setPanelType("zone");
-    setPanelData(hannamInfo);
-    setPanelMeta({
-      favoriteId: HANNAM_ZONE_SLUG,
-      favoriteLabel: hannamInfo.note || "한남 제3재정비촉진구역",
-    });
-    setIsOpen(true);
-  };
-
-  const handleClickMarker = (complex) => {
-    setPanelType("complex");
-    setPanelData(complex);
-    setPanelMeta(null); // 단지는 관심 구역 버튼 X
-    setIsOpen(true);
-    setMapCenter({ lat: complex.lat, lng: complex.lng });
-  };
-
-  const handleToggleFavoriteZone = async () => {
-    if (!panelMeta?.favoriteId) return;
-
-    if (!user) {
-      alert("관심 구역 등록은 로그인 후 이용할 수 있습니다.");
+      setMapCenter({ lat: matchMarker.lat, lng: matchMarker.lng });
+      setMapLevel(3);
       return;
     }
 
-    setFavoriteSaving(true);
-    const userRef = doc(db, "users", user.uid);
+    // 2) JSON polygon 검색
+    const matchPoly = polygonList.find((p) =>
+      normalize(p.name || p.note).includes(norm)
+    );
 
-    try {
-      const profile = await getDoc(userRef);
+    if (matchPoly && Array.isArray(matchPoly.polygons)) {
+      const firstPoly = matchPoly.polygons[0];
 
-      if (!profile.exists()) {
-        setNotificationPromptMessage("관심 구역을 저장하려면 먼저 계정 설정을 완료해 주세요.");
-        setShowNotificationPrompt(true);
-        return;
-      }
+      const path = firstPoly.map(([lng, lat]) => ({ lat, lng }));
+      const centroid = {
+        lat: firstPoly.reduce((sum, [, lat]) => sum + lat, 0) / firstPoly.length,
+        lng: firstPoly.reduce(([lngSum], [lng]) => lngSum + lng, 0) / firstPoly.length,
+      };
 
-      const profileData = profile.data() || {};
-      const notificationsAllowed = Boolean(profileData.notification?.enabled);
-      if (!notificationsAllowed) {
-        setNotificationPromptMessage("알림 설정을 켜야 관심 구역을 저장할 수 있습니다.");
-        setShowNotificationPrompt(true);
-        return;
-      }
-
-      const alreadyFavorite = favoriteZoneIds.includes(panelMeta.favoriteId);
-
-      await updateDoc(userRef, {
-        favoriteZones: alreadyFavorite
-          ? arrayRemove(panelMeta.favoriteId)
-          : arrayUnion(panelMeta.favoriteId),
-        updatedAt: serverTimestamp(),
+      setPanelData({
+        id: matchPoly.id,
+        name: matchPoly.name,
+        area: matchPoly.area,
+        stage: matchPoly.stage,
+        household: matchPoly.households,
+        address: matchPoly.zone_address,
+        coords: path,
       });
-    } catch (err) {
-      console.error("관심 구역 저장 실패", err);
-      alert("관심 구역을 업데이트하지 못했습니다. 잠시 후 다시 시도해주세요.");
-    } finally {
-      setFavoriteSaving(false);
+      setPanelType("zone");
+      setIsOpen(true);
+      setMapCenter(centroid);
+      setMapLevel(4);
+      return;
     }
+
+    alert("검색 결과 없음");
   };
 
-  if (!kakaoAppKey) return <div>API Key Error</div>;
-  if (loaderError) return <div>Map Load Error</div>;
+  // ---------------------------
+  // Render
+  // ---------------------------
+  if (!kakaoAppKey) return <div>API KEY ERROR</div>;
+  if (!kakaoReady) return <div>지도 로딩 중...</div>;
 
   return (
-    <section className="map-shell">
-      <div className="map-shell__inner">
-        <header className="map-header">
-          <div className="map-header__text">
-            <p className="map-pill">한남동 실거래 데이터</p>
-            <h1>{title || "구역·단지 정보를 한 화면에서"}</h1>
-            <p>
-              핀이나 폴리곤을 선택하면 구역 정보와 거래 기록을 왼쪽 패널로 확인할 수 있습니다.
-              검색과 전체 보기 버튼으로 빠르게 위치를 이동하세요.
-            </p>
-          </div>
-          <div className="map-header__stats">
-            <article>
-              <p className="stat-label">등록 단지</p>
-              <strong className="stat-value">
-                {totalComplexes.toLocaleString()}곳
-              </strong>
-            </article>
-            <article>
-              <p className="stat-label">최근 실거래</p>
-              <strong className="stat-value">
-                {formatPrice(trendStats.at(-1)?.avg_price)}
-              </strong>
-            </article>
-            <article>
-              <p className="stat-label">누적 거래</p>
-              <strong className="stat-value">
-                {totalDeals.toLocaleString()}건
-              </strong>
-            </article>
-          </div>
-        </header>
+    <section className="map-fullscreen" style={{ height: height || "80vh" }}>
+      <div className="map-fullscreen__canvas">
+        <Map
+          center={mapCenter}
+          level={mapLevel}
+          style={{ width: "100%", height: "100%" }}
+          onCreate={(map) => (mapRef.current = map)}
+        >
+          {/* 🔥 JSON 폴리곤 렌더링 */}
+          {polygonList.map((poly, idx) => {
+            if (!Array.isArray(poly.polygons)) return null;
+            const firstPath = poly.polygons[0].map(([lng, lat]) => ({
+              lat,
+              lng,
+            }));
 
-        <div className="map-toolbar">
-          <div className="map-search-panel">
-            <label htmlFor="map-search">단지 검색</label>
-            <div className="map-search-panel__controls">
-              <input
-                id="map-search"
-                className="map-search-input"
-                placeholder="아파트 이름으로 검색"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              />
-              <button type="button" className="map-search-btn" onClick={handleSearch}>
-                검색
-              </button>
-              <button type="button" className="map-reset-btn" onClick={handleResetCenter}>
-                전체 보기
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className={`map-stage${isOpen ? " has-panel" : ""}`}>
-          {isOpen && (
-            <div className="map-info-overlay">
-              <InfoPanel
-                type={panelType}
-                data={panelData}
-                onClose={() => setIsOpen(false)}
-                favoriteId={panelMeta?.favoriteId}
-                favoriteLabel={panelMeta?.favoriteLabel}
-                isFavorite={
-                  panelMeta?.favoriteId
-                    ? favoriteZoneIds.includes(panelMeta.favoriteId)
-                    : false
-                }
-                favoritePending={favoriteSaving}
-                onToggleFavorite={handleToggleFavoriteZone}
-              />
-            </div>
-          )}
-
-          <div className="map-stage__canvas" style={{ height }}>
-            {(kakaoLoading || !mapReady) && (
-              <div className="map-viewer__loading">지도를 불러오는 중...</div>
-            )}
-
-            {!kakaoLoading && (
-              <Map
-                center={mapCenter}
-                style={{ width: "100%", height: "100%" }}
-                level={mapLevel}
-                onCreate={(map) => {
-                  mapRef.current = map;
-                  setMapReady(true);
-                }}
-              >
-                <Polygon path={hannamPath} {...polygonStyle} onClick={handleOpenZonePanel} />
-
-                {complexMarkers.map((complex) => (
-                  <MapMarker
-                    key={complex.name}
-                    position={{ lat: complex.lat, lng: complex.lng }}
-                    clickable
-                    onClick={() => handleClickMarker(complex)}
-                  />
-                ))}
-              </Map>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="map-shell__inner">
-        <div className="map-trend-card">
-          <div className="map-trend-card__header">
-            <div>
-              <p>한남동 실거래 추이</p>
-              <strong>최근 6개월 데이터</strong>
-            </div>
-            <div className="map-trend-card__badge">
-              <strong>{formatPrice(trendStats.at(-1)?.avg_price)}</strong>
-              <span>한남동 전체 데이터 기준</span>
-            </div>
-          </div>
-          <div className="map-trend-list">
-            {trendStats.map((stat) => {
-              const ratio = Math.max(0.08, stat.avg_price / maxTrendPrice);
-              return (
-                <div
-                  key={`${stat.year}-${stat.month}`}
-                  className="map-trend-row"
-                >
-                  <div className="map-trend-row__label">
-                    <span>
-                      {stat.year}.{String(stat.month).padStart(2, "0")}
-                    </span>
-                    <strong>{stat.avg_price.toLocaleString("ko-KR")}원</strong>
-                  </div>
-                  <div className="map-trend-row__bar">
-                    <span style={{ width: `${ratio * 100}%` }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-      {showNotificationPrompt && (
-        <div className="map-notification-modal" role="dialog" aria-modal="true">
-          <div className="map-notification-card">
-            <h3>알림 설정을 켜시겠습니까?</h3>
-            <p>{notificationPromptMessage || "계정 설정에서 알림을 켠 뒤 관심 구역을 추가할 수 있습니다."}</p>
-            <div className="map-notification-actions">
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => setShowNotificationPrompt(false)}
-              >
-                나중에
-              </button>
-              <button
-                type="button"
+            return (
+              <Polygon
+                key={`json-poly-${idx}`}
+                path={firstPath}
+                strokeWeight={2}
+                strokeColor="#FF3B30"
+                fillColor="#FF3B30"
+                fillOpacity={0.3}
                 onClick={() => {
-                  setShowNotificationPrompt(false);
-                  navigate("/account-settings");
+                  setPanelType("zone");
+                  setPanelData({
+                    id: poly.id,
+                    name: poly.zone_name || poly.name,
+                    district: poly.district,
+                    dong: poly.dong,
+                    type: poly.type,
+                    op_type: poly.op_type,
+                    note: poly.note,
+                    address: poly.address,
+                    stage: poly.stage,
+                    status: poly.status,
+                    households: poly.households,
+                    zone_address: poly.zone_address,
+                    area: poly.area,
+                    coords: firstPath,
+                    typeLabel: "polygon-json",
+                  });
+                  setIsOpen(true);
                 }}
-              >
-                알림 설정으로 이동
-              </button>
-            </div>
+              />
+            );
+          })}
+
+          {/* 🔥 단지 markers */}
+          {complexMarkers.map((c, idx) => (
+            <MapMarker
+              key={`marker-${idx}`}
+              position={{ lat: c.lat, lng: c.lng }}
+              clickable
+              onClick={() => {
+                setPanelType("complex");
+                setPanelData(c);
+                setIsOpen(true);
+              }}
+            />
+          ))}
+        </Map>
+      </div>
+
+      {/* 상단 검색 UI */}
+      <div className="map-overlay-stack">
+        <div className="map-overlay-card">
+          <p className="map-overlay-eyebrow">SEE:REAL</p>
+          <h2>{title || "재개발 구역 통합 지도"}</h2>
+          <div className="map-search-row">
+            <input
+              value={keyword}
+              onChange={(e) => setKeyword(e.target.value)}
+              placeholder="구역명 또는 아파트 검색"
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            />
+            <button onClick={handleSearch}>검색</button>
           </div>
         </div>
-      )}
+
+        {/* 정보 패널 */}
+        <div className={`map-info-panel${isOpen ? " open" : ""}`}>
+          <InfoPanel
+            type={panelType}
+            data={panelData}
+            onClose={() => setIsOpen(false)}
+          />
+        </div>
+      </div>
     </section>
   );
 }

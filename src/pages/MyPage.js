@@ -489,7 +489,7 @@ function MyPage() {
             <p className="section-label">관심 구역</p>
             <h2>내가 등록한 정비구역</h2>
           </div>
-          <button type="button" onClick={() => navigate("/")}>
+          <button type="button" onClick={() => navigate("/process")}>
             구역 찾기
           </button>
         </div>

@@ -1,19 +1,11 @@
 import React, { useMemo } from "react";
-import hannamStats from "../data/hannam_stats.json";
+import { useNavigate } from "react-router-dom";
 import "./InfoPanel.css";
 
-function InfoPanel({
-  type = "zone",
-  data,
-  onClose,
-  favoriteId,
-  favoriteLabel,
-  isFavorite,
-  favoritePending,
-  onToggleFavorite,
-}) {
-  const formatNumber = (num) =>
-    num || num === 0 ? num.toLocaleString() : "N/A";
+function InfoPanel({ type = "zone", data, onClose }) {
+  const navigate = useNavigate();
+
+  const formatNumber = (num) => (num || num === 0 ? num.toLocaleString() : "N/A");
 
   const formatPeriod = (stat) =>
     stat ? `${stat.year}.${stat.month.toString().padStart(2, "0")}` : "";
@@ -30,15 +22,30 @@ function InfoPanel({
   const formatDealDate = (dateString) =>
     dateString ? dateString.replace(/-/g, ".") : "-";
 
-  const latestZoneStat = hannamStats[hannamStats.length - 1];
-  const recentZoneStats = useMemo(() => hannamStats.slice(-4), []);
+  const latestZoneStat = Array.isArray(data.stats) && data.stats.length > 0 ? data.stats[data.stats.length - 1] : null;
+  const recentZoneStats = useMemo(() => Array.isArray(data.stats) ? data.stats.slice(-4) : [], [data.stats]);
 
   if (!data) {
     return null;
   }
 
-  const showFavoriteButton = Boolean(favoriteId && onToggleFavorite);
-  const favoriteButtonLabel = isFavorite ? "관심 구역 해제" : "관심 구역 등록";
+  const handleViewDetails = () => {
+    if (data.name) {
+      console.log("Navigating to:", `/calculator/${data.name}`);
+      console.log("Data name (regionId):", data.name);
+      navigate(`/calculator/${data.name}`);
+      onClose();
+    } else {
+      console.error("Project ID (data.name) is missing for navigation.");
+      alert("프로젝트 ID를 찾을 수 없습니다.");
+    }
+  };
+
+  const handleFavoriteToggle = (id, name) => {
+    console.log(`Favorite button clicked for ID: ${id}, Name: ${name}`);
+    alert(`'${name}'을(를) 관심 구역/단지로 등록합니다. (Firebase 연동 예정)`);
+    // 여기에 Firebase 연동 로직 추가 예정
+  };
 
   const renderZoneInfo = () => (
     <>
@@ -67,7 +74,9 @@ function InfoPanel({
           <p className="info-price-value">
             {formatNumber(latestZoneStat.avg_price)}원
           </p>
-          <p className="info-price-period">{formatPeriod(latestZoneStat)}</p>
+          <p className="info-price-period">
+            {formatPeriod(latestZoneStat)}
+          </p>
           <div className="info-price-trend">
             {recentZoneStats.map((stat) => (
               <div key={`${stat.year}-${stat.month}`}>
@@ -78,6 +87,17 @@ function InfoPanel({
           </div>
         </div>
       )}
+      <div className="infoPanel-actions">
+        <button className="view-details-btn" onClick={handleViewDetails}>
+          자세히 보기
+        </button>
+        <button
+          className="favorite-btn"
+          onClick={() => handleFavoriteToggle(data.name, data.note)}
+        >
+          ★ 관심 구역 등록
+        </button>
+      </div>
     </>
   );
 
@@ -115,15 +135,12 @@ function InfoPanel({
             <span>{formatNumber(data.latest_avg)}원</span>
           </div>
         </div>
-
         {recentStats.length ? (
           <div className="info-price-section">
             <p className="info-price-title">월별 평균 실거래가</p>
             <div className="info-price-trend">
               {recentStats.map((stat) => (
-                <div
-                  key={`${data.name || "complex"}-${stat.year}-${stat.month}`}
-                >
+                <div key={`${data.name || "complex"}-${stat.year}-${stat.month}`}>
                   <span>{formatPeriod(stat)}</span>
                   <strong>{formatNumber(stat.avg_price)}원</strong>
                 </div>
@@ -133,7 +150,6 @@ function InfoPanel({
         ) : (
           <p className="info-price-title">실거래 추이 데이터가 없습니다.</p>
         )}
-
         {recentDeals.length ? (
           <div className="info-deal-section">
             <p className="info-price-title">최근 거래 내역</p>
@@ -144,17 +160,13 @@ function InfoPanel({
                   key={`${deal.date}-${deal.area_m2}-${deal.floor}`}
                 >
                   <div className="deal-headline">
-                    <span className="deal-date">
-                      {formatDealDate(deal.date)}
-                    </span>
+                    <span className="deal-date">{formatDealDate(deal.date)}</span>
                     <strong>{formatNumber(deal.price)}원</strong>
                   </div>
                   <div className="deal-meta">
                     <span>{formatAreaValue(deal.area_m2)}</span>
                     <span>
-                      {typeof deal.floor === "number"
-                        ? `${deal.floor}층`
-                        : "-"}
+                      {typeof deal.floor === "number" ? `${deal.floor}층` : "-"}
                     </span>
                   </div>
                 </div>
@@ -164,6 +176,17 @@ function InfoPanel({
         ) : (
           <p className="info-price-title">최근 거래 내역이 없습니다.</p>
         )}
+      <div className="infoPanel-actions">
+        <button className="view-details-btn" onClick={handleViewDetails}>
+          자세히 보기
+        </button>
+        <button
+          className="favorite-btn"
+          onClick={() => handleFavoriteToggle(data.name, data.name)}
+        >
+          ★ 관심 단지 등록
+        </button>
+      </div>
       </>
     );
   };
@@ -174,22 +197,9 @@ function InfoPanel({
         ×
       </button>
       <div className="infoPanel-content">
-        {showFavoriteButton && (
-          <button
-            type="button"
-            className={`favorite-toggle${isFavorite ? " active" : ""}`}
-            onClick={onToggleFavorite}
-            disabled={favoritePending}
-          >
-            {favoritePending
-              ? "처리 중..."
-              : `${favoriteButtonLabel}${
-                  favoriteLabel ? ` · ${favoriteLabel}` : ""
-                }`}
-          </button>
-        )}
-
-        {type === "complex" ? renderComplexInfo() : renderZoneInfo()}
+        <div className="infoPanel-inner">
+          {type === "complex" ? renderComplexInfo() : renderZoneInfo()}
+        </div>
       </div>
     </div>
   );

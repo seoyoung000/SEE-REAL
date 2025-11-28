@@ -1,10 +1,10 @@
 .infoPanel {
   position: relative;
-  width: 360px;
+  width: 380px;
   background-color: #fff;
   border-radius: 22px;
   box-shadow: 0 18px 38px rgba(15, 23, 42, 0.22);
-  padding: 26px 28px;
+  padding: 14px 20px 20px;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -12,10 +12,19 @@
 }
 
 .infoPanel-content {
-  margin-top: 48px;
+  margin-top: 24px;
   overflow-y: auto;
-  max-height: min(520px, calc(100vh - 220px));
-  padding-right: 4px;
+  max-height: 260px;
+  padding-right: 20px;
+  margin-right: 0;
+  width: 100%;
+  transform: translate(0, -10px);
+}
+
+.infoPanel-inner {
+  max-width: 300px;
+  margin-left: 4px;
+  padding-right: 40px;
 }
 
 .favorite-toggle {
@@ -44,8 +53,8 @@
 
 .infoPanel .close-btn {
   position: absolute;
-  top: 14px;
-  right: 16px;
+  top: 5px;
+  right: 55px;
   background: #edf1f7;
   border: none;
   border-radius: 50%;
@@ -196,6 +205,54 @@
   color: #4b5563;
   display: flex;
   gap: 10px;
+}
+
+.infoPanel-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 18px;
+  margin-bottom: 6px;
+}
+
+.view-details-btn,
+.favorite-btn {
+  padding: 12px 0;
+  border-radius: 12px;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.view-details-btn {
+  background: #4162f5;
+  color: #fff;
+}
+
+.favorite-btn {
+  background: #f2f5ff;
+  color: #1f2f5c;
+  border: 1px solid rgba(31, 47, 92, 0.2);
+}
+
+.favorite-btn + .favorite-btn {
+  margin-top: 6px;
+}
+
+.infoPanel-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.infoPanel-content::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+}
+
+.infoPanel-content::-webkit-scrollbar-thumb {
+  background: rgba(65, 98, 245, 0.6);
+  border-radius: 999px;
 }
 
 @media (max-width: 768px) {
