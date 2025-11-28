@@ -1,6 +1,7 @@
 // src/App.js
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./pages/Home";
 import MyPage from "./pages/MyPage";
 import "./App.css";
@@ -10,6 +11,7 @@ import PostWrite from "./pages/PostWrite";
 import PostDetail from "./pages/PostDetail";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
+import AccountSetup from "./pages/AccountSetup";
 import AccountSettings from "./pages/AccountSettings";
 import ProjectDetailPage from "./pages/ProjectDetailPage";
 import ProcessGuidePage from "./pages/ProcessGuidePage";
@@ -29,6 +31,7 @@ function FeaturePlaceholder({ title, description }) {
 function App() {
   return (
     <BrowserRouter>
+      <ScrollToTop />
       <Header />
       <main className="app-main">
         <Routes>
@@ -41,6 +44,8 @@ function App() {
 
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/account-setup" element={<AccountSetup />} />
+          <Route path="/onboarding" element={<AccountSetup />} />
           <Route path="/account-settings" element={<AccountSettings />} />
           <Route path="/mypage" element={<MyPage />} />
 

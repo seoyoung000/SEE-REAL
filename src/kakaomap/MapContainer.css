@@ -209,7 +209,7 @@
   border-radius: 24px;
   overflow: hidden;
   position: relative;
-  min-height: 360px;
+  min-height: 520px;
 }
 
 .map-stage__canvas > div {
@@ -263,4 +263,60 @@
     margin-bottom: 16px;
     animation: none;
   }
+}
+
+.map-notification-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 999;
+}
+
+.map-notification-card {
+  max-width: 420px;
+  width: 100%;
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  text-align: left;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.3);
+}
+
+.map-notification-card h3 {
+  margin: 0 0 10px;
+  font-size: 20px;
+  color: #111421;
+}
+
+.map-notification-card p {
+  margin: 0 0 18px;
+  color: #4d5c6b;
+}
+
+.map-notification-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.map-notification-actions button {
+  border-radius: 12px;
+  padding: 10px 18px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.map-notification-actions .ghost {
+  background: #f4f6fb;
+  color: #1f2533;
+}
+
+.map-notification-actions button:not(.ghost) {
+  background: #1f5fb8;
+  color: #fff;
 }

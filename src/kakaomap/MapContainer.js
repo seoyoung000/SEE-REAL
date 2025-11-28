@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Map, Polygon, MapMarker, useKakaoLoader } from "react-kakao-maps-sdk";
 import {
   arrayRemove,
@@ -7,7 +8,6 @@ import {
   getDoc,
   onSnapshot,
   serverTimestamp,
-  setDoc,
   updateDoc,
 } from "firebase/firestore";
 
@@ -54,8 +54,9 @@ const polygonStyle = {
   fillOpacity: 0.3,
 };
 
-function MapContainer({ title, height = "70vh" }) {
+function MapContainer({ title, height = "85vh" }) {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [keyword, setKeyword] = useState("");
   const [isOpen, setIsOpen] = useState(false);
@@ -72,6 +73,8 @@ function MapContainer({ title, height = "70vh" }) {
 
   const [favoriteZoneIds, setFavoriteZoneIds] = useState([]);
   const [favoriteSaving, setFavoriteSaving] = useState(false);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [notificationPromptMessage, setNotificationPromptMessage] = useState("");
 
   const mapRef = useRef(null);
   const initializedRef = useRef(false);
@@ -250,18 +253,17 @@ function MapContainer({ title, height = "70vh" }) {
       const profile = await getDoc(userRef);
 
       if (!profile.exists()) {
-        // 최소 기본 정보만 생성 (알림 설정은 건드리지 않음)
-        await setDoc(
-          userRef,
-          {
-            uid: user.uid,
-            email: user.email,
-            name: user.displayName || "",
-            createdAt: serverTimestamp(),
-            favoriteZones: [],
-          },
-          { merge: true }
-        );
+        setNotificationPromptMessage("관심 구역을 저장하려면 먼저 계정 설정을 완료해 주세요.");
+        setShowNotificationPrompt(true);
+        return;
+      }
+
+      const profileData = profile.data() || {};
+      const notificationsAllowed = Boolean(profileData.notification?.enabled);
+      if (!notificationsAllowed) {
+        setNotificationPromptMessage("알림 설정을 켜야 관심 구역을 저장할 수 있습니다.");
+        setShowNotificationPrompt(true);
+        return;
       }
 
       const alreadyFavorite = favoriteZoneIds.includes(panelMeta.favoriteId);
@@ -425,6 +427,32 @@ function MapContainer({ title, height = "70vh" }) {
           </div>
         </div>
       </div>
+      {showNotificationPrompt && (
+        <div className="map-notification-modal" role="dialog" aria-modal="true">
+          <div className="map-notification-card">
+            <h3>알림 설정을 켜시겠습니까?</h3>
+            <p>{notificationPromptMessage || "계정 설정에서 알림을 켠 뒤 관심 구역을 추가할 수 있습니다."}</p>
+            <div className="map-notification-actions">
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => setShowNotificationPrompt(false)}
+              >
+                나중에
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNotificationPrompt(false);
+                  navigate("/account-settings");
+                }}
+              >
+                알림 설정으로 이동
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

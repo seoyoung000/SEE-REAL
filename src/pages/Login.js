@@ -38,8 +38,10 @@ function Login() {
     setSubmitting(true);
     setError("");
     try {
-      await loginWithGoogle();
-      navigate(redirectPath, { replace: true });
+      const result = await loginWithGoogle();
+      if (result && !result.needsSetup) {
+        navigate(redirectPath, { replace: true });
+      }
     } catch (googleError) {
       setError("구글 로그인 중 문제가 발생했습니다. 다시 시도해주세요.");
     } finally {

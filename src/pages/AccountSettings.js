@@ -1,6 +1,17 @@
+// src/pages/AccountSettings.js
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
+import { updateProfile } from "firebase/auth";
+import {
+  collection,
+  doc,
+  getDocs,
+  onSnapshot,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+} from "firebase/firestore";
 import { useAuth } from "../context/AuthContext";
 import { db } from "../firebase/config";
 import { DEFAULT_ZONE_SLUG, getZoneName } from "../utils/zones";
@@ -19,62 +30,164 @@ function AccountSettings() {
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [channelWarning, setChannelWarning] = useState("");
 
-  const [allowNotification, setAllowNotification] = useState(false);
-  const [allowEmail, setAllowEmail] = useState(false);
-  const [allowSMS, setAllowSMS] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [notifySMS, setNotifySMS] = useState(false);
+
   const [favoriteZones, setFavoriteZones] = useState([]);
 
-  // 로그인 안 되어 있으면 로그인으로 돌리기
+  const smsWarningMessage =
+    "문자 알림을 받으려면 휴대전화 번호를 먼저 입력해주세요.";
+
   useEffect(() => {
     if (!initializing && !user) {
-      navigate("/login", { replace: true, state: { from: "/account-settings" } });
+      navigate("/login", { replace: true });
     }
   }, [initializing, user, navigate]);
 
-  // Firestore 사용자 문서 구독
+  // 닉네임 중복 검사
+  const isDisplayNameTaken = async (name, excludeUid = null) => {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+
+    const nicknameQuery = query(
+      collection(db, "users"),
+      where("displayName", "==", trimmed)
+    );
+    const snapshot = await getDocs(nicknameQuery);
+
+    if (snapshot.empty) return false;
+
+    return snapshot.docs.some((docSnap) => docSnap.id !== excludeUid);
+  };
+
+  // 사용자 Firestore 정보 로드
   useEffect(() => {
     if (!user) return;
 
     const userRef = doc(db, "users", user.uid);
-
-    const unsubscribe = onSnapshot(
+    const unsub = onSnapshot(
       userRef,
-      (snapshot) => {
-        const data = snapshot.data() || {};
-        setAllowNotification(Boolean(data.allowNotification));
-        setAllowEmail(Boolean(data.allowEmail));
-        setAllowSMS(Boolean(data.allowSMS));
-        setFavoriteZones(Array.isArray(data.favoriteZones) ? data.favoriteZones : []);
+      (snap) => {
+        if (!snap.exists()) {
+          setDisplayName(user.displayName || "");
+          setContactEmail(user.email || "");
+          setPhoneNumber(user.phoneNumber || "");
+          setFavoriteZones([]);
+          setLoading(false);
+          return;
+        }
+
+        const data = snap.data();
+        const notification = data.notification || {
+          enabled: true,
+          channels: { email: true, sms: false },
+        };
+
+        setDisplayName(data.displayName || user.displayName || "");
+        setContactEmail(data.email || user.email || "");
+        setPhoneNumber(data.phoneNumber || user.phoneNumber || "");
+
+        setNotificationEnabled(Boolean(notification.enabled));
+        setNotifyEmail(Boolean(notification.channels?.email));
+        setNotifySMS(
+          Boolean(notification.channels?.sms && (data.phoneNumber || user.phoneNumber))
+        );
+
+        setFavoriteZones(data.favoriteZones || []);
         setLoading(false);
       },
       (err) => {
-        console.error("계정 정보를 불러오지 못했습니다.", err);
-        setError("계정 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
+        console.error("계정 정보 불러오기 실패:", err);
+        setError("계정 정보를 불러오지 못했습니다.");
         setLoading(false);
       }
     );
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [user]);
+
+  // 알림 전체 켜기/끄기 동작
+  useEffect(() => {
+    if (!notificationEnabled) {
+      setNotifyEmail(false);
+      setNotifySMS(false);
+      setChannelWarning("");
+      return;
+    }
+
+    if (!notifyEmail) setNotifyEmail(true);
+
+    if (phoneNumber.trim()) {
+      if (!notifySMS) setNotifySMS(true);
+      setChannelWarning("");
+    } else {
+      setNotifySMS(false);
+      setChannelWarning(smsWarningMessage);
+    }
+  }, [notificationEnabled, phoneNumber]);
+
+  const handleToggleSMS = () => {
+    if (!notificationEnabled) return;
+
+    if (!phoneNumber.trim()) {
+      setChannelWarning(smsWarningMessage);
+      return;
+    }
+
+    setChannelWarning("");
+    setNotifySMS((prev) => !prev);
+  };
 
   const favoriteZoneLabels = useMemo(
     () =>
-      favoriteZones.map((zoneId) => ({
-        id: zoneId,
-        name: getZoneName(zoneId, zoneId),
+      favoriteZones.map((z) => ({
+        id: z,
+        name: getZoneName(z, z),
       })),
     [favoriteZones]
   );
 
-  // 설정 저장
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const buildNotificationPayload = (hasPhone) => ({
+    enabled: notificationEnabled,
+    channels: {
+      email: notificationEnabled ? notifyEmail : false,
+      sms: notificationEnabled ? (notifySMS && hasPhone) : false,
+    },
+  });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!user) return;
 
-    setSaving(true);
-    setMessage("");
     setError("");
+    setMessage("");
+    setChannelWarning("");
+
+    const trimmedName = displayName.trim();
+    if (!trimmedName) {
+      setError("닉네임을 입력해 주세요.");
+      return;
+    }
+
+    if (notificationEnabled && notifySMS && !phoneNumber.trim()) {
+      setError("문자 알림을 받으려면 휴대전화 번호를 입력해주세요.");
+      return;
+    }
+
+    const duplicate = await isDisplayNameTaken(trimmedName, user.uid);
+    if (duplicate) {
+      setError("이미 사용 중인 닉네임입니다.");
+      return;
+    }
+
+    setSaving(true);
 
     try {
       const userRef = doc(db, "users", user.uid);
@@ -82,42 +195,39 @@ function AccountSettings() {
       await setDoc(
         userRef,
         {
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName || "",
-          // createdAt 은 최초 생성 시(회원가입/온보딩/기타)에서만 세팅한다고 가정
-          allowNotification,
-          allowEmail: allowNotification ? allowEmail : false,
-          allowSMS: allowNotification ? allowSMS : false,
+          displayName: trimmedName,
+          email: contactEmail.trim(),
+          phoneNumber: phoneNumber.trim() || null,
+          notification: buildNotificationPayload(Boolean(phoneNumber.trim())),
           favoriteZones,
           updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
 
-      setMessage("설정이 저장되었습니다.");
-      if (onboarding) {
-        navigate("/", { replace: true });
+      // Auth displayName 업데이트
+      if (user.displayName !== trimmedName) {
+        await updateProfile(user, { displayName: trimmedName });
       }
+
+      setMessage("설정이 저장되었습니다.");
     } catch (err) {
-      console.error("알림 설정 저장 실패", err);
-      setError("설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.");
+      console.error("저장 실패:", err);
+      setError("설정을 저장하지 못했습니다.");
     } finally {
       setSaving(false);
     }
   };
 
-  // 테스트 알림 생성
+  // 🔥 테스트 알림 보내기
   const handleTestNotification = async () => {
     if (!user) return;
-    if (!allowNotification) {
-      setError("알림 수신 동의를 먼저 켜주세요.");
-      return;
-    }
+
+    setError("");
+    setMessage("");
+    setChannelWarning("");
 
     setTesting(true);
-    setMessage("");
-    setError("");
 
     try {
       const result = await sendStageNotification({
@@ -125,141 +235,170 @@ function AccountSettings() {
         zoneId: favoriteZones[0] || DEFAULT_ZONE_SLUG,
         title: "단계 변경 알림 테스트",
         body: "설정한 채널로 단계 변경 알림이 도착합니다.",
+        safeMode: true,
       });
 
-      if (!result.sent) {
-        setError("알림을 생성하지 못했습니다. 설정을 다시 확인해주세요.");
+      if (result.sent) {
+        setMessage(
+          "테스트 알림이 생성되었습니다!"
+        );
       } else {
-        setMessage("테스트 알림이 생성되었습니다. 마이페이지에서 확인할 수 있습니다.");
+        setError("알림 생성에 실패했습니다.");
       }
     } catch (err) {
-      console.error("테스트 알림 생성 실패", err);
-      setError("테스트 알림 생성에 실패했습니다.");
+      console.error("실패:", err);
+      setError("알림 생성에 실패했습니다.");
     } finally {
       setTesting(false);
     }
   };
 
-  if (initializing || !user) {
-    // 깜빡임 방지용
-    return null;
-  }
+  if (initializing || !user) return null;
 
   return (
     <div className="account-settings">
       <header className="account-header">
         <div>
           <p className="account-label">계정 관리</p>
-          <h1>알림 · 관심 구역 설정</h1>
+          <h1>프로필 · 알림 설정</h1>
           <p>
             {onboarding
-              ? "알림 수신 방법을 선택하면 지도에서 관심 구역을 저장할 수 있습니다."
-              : "단계 변경, 이메일·문자 수신 여부를 한 곳에서 관리하세요."}
+              ? "알림 채널을 설정하면 관심 구역 변동을 빠르게 받아볼 수 있습니다."
+              : "연락처와 알림 채널을 관리하고 테스트 알림을 확인할 수 있습니다."}
           </p>
         </div>
-        <button type="button" onClick={() => navigate("/mypage")}>
-          마이페이지로 이동
-        </button>
+        <button onClick={() => navigate("/mypage")}>마이페이지로 이동</button>
       </header>
 
       <section className="account-card">
         <form onSubmit={handleSubmit}>
           <div className="account-form-grid">
+            {/* ---- 기본 정보 ---- */}
             <div className="account-form-section">
-              <p className="section-label">알림 수신 동의</p>
+              <p className="section-label">기본 정보</p>
+
+              <label className="account-field">
+                <span>닉네임</span>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  required
+                  disabled={saving}
+                />
+              </label>
+
+              <label className="account-field">
+                <span>이메일</span>
+                <input
+                  type="email"
+                  value={contactEmail}
+                  onChange={(e) => setContactEmail(e.target.value)}
+                  disabled
+                />
+              </label>
+
+              <label className="account-field">
+                <span>휴대전화번호</span>
+                <input
+                  type="tel"
+                  placeholder="'-' 없이 숫자만 입력"
+                  value={phoneNumber}
+                  onChange={(e) => {
+                    setPhoneNumber(e.target.value);
+                    setChannelWarning("");
+                  }}
+                />
+              </label>
+
+              {channelWarning && !error && !message && (
+                <p className="field-hint warning">{channelWarning}</p>
+              )}
+            </div>
+
+            {/* ---- 알림 설정 ---- */}
+            <div className="account-form-section">
+              <p className="section-label">알림 설정</p>
 
               <label className="consent-checkbox">
                 <input
                   type="checkbox"
-                  checked={allowNotification}
-                  onChange={() => {
-                    const next = !allowNotification;
-                    setAllowNotification(next);
-                    if (!next) {
-                      setAllowEmail(false);
-                      setAllowSMS(false);
-                    }
-                  }}
-                  disabled={loading || saving}
+                  checked={notificationEnabled}
+                  onChange={() => setNotificationEnabled((prev) => !prev)}
                 />
-                전체 알림 수신 동의
+                알림 전체 켜기
               </label>
 
               <div className="consent-depth">
                 <label className="consent-checkbox">
                   <input
                     type="checkbox"
-                    checked={allowEmail}
-                    disabled={!allowNotification || loading || saving}
-                    onChange={() => setAllowEmail((prev) => !prev)}
+                    checked={notifyEmail}
+                    disabled={!notificationEnabled}
+                    onChange={() => setNotifyEmail((prev) => !prev)}
                   />
                   이메일 알림
                 </label>
+
                 <label className="consent-checkbox">
                   <input
                     type="checkbox"
-                    checked={allowSMS}
-                    disabled={!allowNotification || loading || saving}
-                    onChange={() => setAllowSMS((prev) => !prev)}
+                    checked={notifySMS}
+                    disabled={!notificationEnabled}
+                    onChange={handleToggleSMS}
                   />
                   문자 알림
                 </label>
               </div>
-            </div>
 
-            <div className="account-form-section muted">
-              <p className="section-label">안내</p>
-              <ul>
-                <li>알림 동의는 언제든지 마이페이지 &gt; 계정 관리에서 수정할 수 있습니다.</li>
-                <li>문자 알림은 향후 문자 발송 파트너 연동 시 적용됩니다.</li>
-                <li>테스트 알림은 마이페이지 알림 섹션에서 바로 확인할 수 있습니다.</li>
-              </ul>
+              {/* 테스트 알림 */}
+              <div className="account-test-card">
+                <p>설정 확인</p>
+                <button
+                  type="button"
+                  disabled={!notificationEnabled || testing}
+                  onClick={handleTestNotification}
+                >
+                  {testing ? "테스트 중..." : "테스트 알림 보내기"}
+                </button>
+              </div>
             </div>
           </div>
 
-          {error && <p className="account-error">{error}</p>}
-          {message && <p className="account-success">{message}</p>}
+          {error && <div className="account-error">{error}</div>}
+          {message && <div className="account-success">{message}</div>}
 
           <div className="account-actions">
-            <button type="submit" className="primary" disabled={saving || loading}>
+            <button type="submit" className="primary" disabled={saving}>
               {saving ? "저장 중..." : "설정 저장"}
             </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={handleTestNotification}
-              disabled={testing || loading}
-            >
-              {testing ? "테스트 생성 중..." : "테스트 알림 생성"}
+            <button type="button" className="ghost" onClick={() => navigate("/mypage")}>
+              마이페이지로 돌아가기
             </button>
           </div>
         </form>
       </section>
 
+      {/* 관심 구역 */}
       <section className="account-card">
         <div className="account-section-heading">
           <div>
-            <p className="section-label">관심 구역</p>
-            <h2>지도에서 선택한 구역</h2>
-            <p>지도나 상세 패널에서 구역을 선택해 관심 구역으로 저장할 수 있습니다.</p>
+            <p className="account-label">관심 구역</p>
+            <h2>저장된 구역</h2>
           </div>
-          <button type="button" onClick={() => navigate("/")}>
-            지도에서 구역 선택
-          </button>
+          <button onClick={() => navigate("/")}>지도에서 찾기</button>
         </div>
 
-        {loading ? (
-          <div className="favorite-placeholder">관심 구역을 불러오는 중입니다...</div>
-        ) : favoriteZoneLabels.length === 0 ? (
+        {favoriteZoneLabels.length === 0 ? (
           <div className="favorite-placeholder">
-            아직 관심 구역이 없습니다. 지도에서 구역을 선택한 뒤 "관심 구역 등록"을 눌러주세요.
+            아직 등록된 구역이 없습니다.
           </div>
         ) : (
           <ul className="favorite-zone-list">
-            {favoriteZoneLabels.map((zone) => (
-              <li key={zone.id}>
-                <strong>{zone.name}</strong>
-                <span>{zone.id}</span>
+            {favoriteZoneLabels.map((z) => (
+              <li key={z.id}>
+                <strong>{z.name}</strong>
+                <span>{z.id}</span>
               </li>
             ))}
           </ul>

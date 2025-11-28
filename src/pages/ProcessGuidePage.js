@@ -14,7 +14,7 @@ function ProcessGuidePage() {
       </section>
 
       <section className="process-map-section">
-        <MapContainer title="한남동 주요 구역 지도" height="78vh" />
+        <MapContainer title="한남동 주요 구역 지도" height="90vh" />
       </section>
 
       <section className="process-help">

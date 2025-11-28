@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import "./Header.css";
@@ -10,6 +10,8 @@ function Header() {
   const [hasAlerts, setHasAlerts] = useState(
     () => sessionStorage.getItem("seereal-has-notifications") === "1"
   );
+  const [collapsed, setCollapsed] = useState(false);
+  const collapsedRef = useRef(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -25,6 +27,37 @@ function Header() {
     };
   }, []);
 
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+  }, [collapsed]);
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    let ticking = false;
+
+    const handleScroll = () => {
+      const current = window.scrollY;
+
+      const updateState = () => {
+        if (!collapsedRef.current && current > 40) {
+          setCollapsed(true);
+        } else if (collapsedRef.current && current < 10) {
+          setCollapsed(false);
+        }
+        lastScrollY = current;
+        ticking = false;
+      };
+
+      if (!ticking) {
+        window.requestAnimationFrame(updateState);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
   const handleSearch = (event) => {
     event.preventDefault();
     const trimmed = keyword.trim();
@@ -36,7 +69,7 @@ function Header() {
   };
 
   return (
-    <header className="header-container">
+    <header className={`header-container${collapsed ? " collapsed" : ""}`}>
       <div className="header-top">
         <div className="header-left">
           <Link to="/" className="header-logo">

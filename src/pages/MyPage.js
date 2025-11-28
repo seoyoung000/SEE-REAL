@@ -3,11 +3,14 @@ import { Link, useNavigate } from "react-router-dom";
 import {
   collection,
   collectionGroup,
+  deleteDoc,
   doc,
+  getDocs,
   limit,
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
@@ -45,6 +48,7 @@ function MyPage() {
   const { user, initializing, logout } = useAuth();
 
   const [favoriteZoneIds, setFavoriteZoneIds] = useState([]);
+  const [notificationPrefs, setNotificationPrefs] = useState(null);
   const [userPosts, setUserPosts] = useState([]);
   const [userComments, setUserComments] = useState([]);
   const [notifications, setNotifications] = useState([]);
@@ -54,6 +58,9 @@ function MyPage() {
     comments: true,
     notifications: true,
   });
+  const [accountError, setAccountError] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [hideReadNotifications, setHideReadNotifications] = useState(false);
 
   useEffect(() => {
     if (!initializing && !user) {
@@ -88,6 +95,7 @@ function MyPage() {
           setFavoriteZoneIds(
             Array.isArray(data?.favoriteZones) ? data.favoriteZones : []
           );
+          setNotificationPrefs(data?.notification || null);
           markReady("favorites");
         },
         (error) => {
@@ -168,6 +176,7 @@ function MyPage() {
             snapshot.docs.map((docSnapshot) => ({
               id: docSnapshot.id,
               ...docSnapshot.data(),
+              read: docSnapshot.data().read === true,
             }))
           );
           markReady("notifications");
@@ -237,6 +246,164 @@ function MyPage() {
     [favoriteZoneIds]
   );
 
+  const filteredNotifications = useMemo(
+    () =>
+      hideReadNotifications
+        ? notifications.filter((notification) => notification.read !== true)
+        : notifications,
+    [notifications, hideReadNotifications]
+  );
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    const confirmDelete = window.confirm(
+      "정말 탈퇴하시겠습니까? 관심 구역과 게시글 기록이 모두 삭제됩니다."
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    setDeletingAccount(true);
+    setAccountError("");
+    const uid = user.uid;
+
+    try {
+      const userDocRef = doc(db, "users", uid);
+      const notificationsRef = collection(db, "users", uid, "notifications");
+      const favoritesRef = collection(db, "users", uid, "favorites");
+      const postsRef = collection(db, "posts");
+
+      const commentsAuthorQuery = query(
+        collectionGroup(db, "comments"),
+        where("authorId", "==", uid)
+      );
+      const commentsUserQuery = query(
+        collectionGroup(db, "comments"),
+        where("userId", "==", uid)
+      );
+
+      const [
+        notificationsSnap,
+        favoritesSnap,
+        postsByAuthorSnap,
+        postsByUserSnap,
+        commentsByAuthorSnap,
+        commentsByUserSnap,
+      ] = await Promise.all([
+        getDocs(notificationsRef),
+        getDocs(favoritesRef),
+        getDocs(query(postsRef, where("authorId", "==", uid))),
+        getDocs(query(postsRef, where("userId", "==", uid))),
+        getDocs(commentsAuthorQuery),
+        getDocs(commentsUserQuery),
+      ]);
+
+      await Promise.all(
+        notificationsSnap.docs.map((docSnap) => deleteDoc(docSnap.ref))
+      );
+
+      const deletedPostIds = new Set();
+      await Promise.all(
+        postsByAuthorSnap.docs.map((docSnap) => {
+          deletedPostIds.add(docSnap.id);
+          return deleteDoc(docSnap.ref);
+        })
+      );
+      await Promise.all(
+        postsByUserSnap.docs.map((docSnap) => {
+          if (deletedPostIds.has(docSnap.id)) {
+            return Promise.resolve();
+          }
+          deletedPostIds.add(docSnap.id);
+          return deleteDoc(docSnap.ref);
+        })
+      );
+
+      const deletedCommentPaths = new Set();
+      await Promise.all(
+        commentsByAuthorSnap.docs.map((docSnap) => {
+          deletedCommentPaths.add(docSnap.ref.path);
+          return deleteDoc(docSnap.ref);
+        })
+      );
+      await Promise.all(
+        commentsByUserSnap.docs.map((docSnap) => {
+          if (deletedCommentPaths.has(docSnap.ref.path)) {
+            return Promise.resolve();
+          }
+          deletedCommentPaths.add(docSnap.ref.path);
+          return deleteDoc(docSnap.ref);
+        })
+      );
+
+      await Promise.all(
+        favoritesSnap.docs.map((docSnap) => deleteDoc(docSnap.ref))
+      );
+
+      await user.delete();
+      await deleteDoc(userDocRef);
+
+      navigate("/", { replace: true });
+    } catch (deleteError) {
+      console.error("계정 삭제 실패", deleteError);
+      if (deleteError?.code === "auth/requires-recent-login") {
+        setAccountError("보안을 위해 다시 로그인한 뒤 탈퇴를 진행해 주세요.");
+      } else {
+        setAccountError("탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해주세요.");
+      }
+    } finally {
+      setDeletingAccount(false);
+    }
+  };
+
+  const handleNotificationClick = async (notification) => {
+    if (!user) return;
+    const target = notification?.targetUrl || "/community";
+    try {
+      if (!notification.read) {
+        const notifRef = doc(db, "users", user.uid, "notifications", notification.id);
+        await updateDoc(notifRef, { read: true });
+      setNotifications((prev) =>
+        prev.map((item) =>
+          item.id === notification.id ? { ...item, read: true } : item
+        )
+      );
+    }
+  } catch (markError) {
+    console.warn("알림 읽음 처리에 실패했습니다.", markError);
+  } finally {
+    navigate(target);
+  }
+  };
+
+  const handleDeleteNotification = async (notificationId) => {
+    if (!user) return;
+    try {
+      const notifRef = doc(db, "users", user.uid, "notifications", notificationId);
+      await deleteDoc(notifRef);
+      setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+    } catch (err) {
+      console.error("알림을 삭제하지 못했습니다.", err);
+    }
+  };
+
+  const handleDeleteAllNotifications = async () => {
+    if (!user) return;
+    const confirmClear = window.confirm("모든 알림을 삭제하시겠습니까?");
+    if (!confirmClear) return;
+    try {
+      const notifRef = collection(db, "users", user.uid, "notifications");
+      const snap = await getDocs(notifRef);
+      await Promise.all(snap.docs.map((docSnap) => deleteDoc(docSnap.ref)));
+      setNotifications([]);
+    } catch (err) {
+      console.error("알림 전체 삭제 실패", err);
+    }
+  };
+
+
+
   if (initializing || !user) {
     return (
       <div className="mypage-container">
@@ -273,8 +440,13 @@ function MyPage() {
           <button type="button" className="outline" onClick={logout}>
             로그아웃
           </button>
-          <button type="button" className="danger">
-            탈퇴하기
+          <button
+            type="button"
+            className="danger"
+            onClick={handleDeleteAccount}
+            disabled={deletingAccount}
+          >
+            {deletingAccount ? "탈퇴 처리 중..." : "탈퇴하기"}
           </button>
         </div>
       </section>
@@ -297,6 +469,19 @@ function MyPage() {
           <span>알림</span>
         </div>
       </section>
+
+      {notificationPrefs && notificationPrefs.enabled === false && (
+        <div className="notification-banner">
+          <p>
+            관심 구역 알림이 꺼져 있습니다. 단계 변경 안내를 받으려면 알림 설정을 켜 주세요.
+          </p>
+          <button type="button" onClick={() => navigate("/account-settings")}>
+            알림 설정으로 이동
+          </button>
+        </div>
+      )}
+
+      {accountError && <div className="mypage-alert-error">{accountError}</div>}
 
       <section className="mypage-section">
         <div className="section-heading">
@@ -451,9 +636,26 @@ function MyPage() {
             <p className="section-label">알림 모음</p>
             <h2>단계 변화 · 댓글 알림</h2>
           </div>
-          <button type="button" onClick={() => navigate("/account-settings")}>
-            알림 설정
-          </button>
+          <div className="notification-actions">
+            <button type="button" onClick={() => navigate("/account-settings")}>
+              알림 설정
+            </button>
+            {notifications.length > 0 && (
+              <label className="notification-toggle">
+                <input
+                  type="checkbox"
+                  checked={hideReadNotifications}
+                  onChange={() => setHideReadNotifications((prev) => !prev)}
+                />
+                읽은 알림 숨기기
+              </label>
+            )}
+            {notifications.length > 0 && (
+              <button type="button" className="danger" onClick={handleDeleteAllNotifications}>
+                전체 삭제
+              </button>
+            )}
+          </div>
         </div>
 
         {allLoading ? (
@@ -461,23 +663,26 @@ function MyPage() {
             <div className="skeleton-line title" />
             <div className="skeleton-line" />
           </div>
-        ) : notifications.length === 0 ? (
+        ) : filteredNotifications.length === 0 ? (
           <div className="section-empty">
-            아직 수신한 알림이 없습니다. 관심 구역을 등록하고 댓글 알림을
-            설정해보세요.
+            {hideReadNotifications
+              ? "읽지 않은 알림이 없습니다. 관심 구역 변화를 기다려 주세요."
+              : "아직 수신한 알림이 없습니다. 관심 구역을 등록하고 댓글 알림을 설정해보세요."}
           </div>
         ) : (
           <div className="notification-list">
-            {notifications.map((notification) => (
-              <button
-                type="button"
+            {filteredNotifications.map((notification) => (
+              <div
                 key={notification.id}
-                className="notification-item"
-                onClick={() =>
-                  notification.targetUrl
-                    ? navigate(notification.targetUrl)
-                    : navigate("/community")
-                }
+                className={`notification-item${notification.read ? " read" : ""}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleNotificationClick(notification)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleNotificationClick(notification);
+                  }
+                }}
               >
                 <div>
                   <p className="notification-title">
@@ -487,10 +692,20 @@ function MyPage() {
                     {notification.body || notification.message || ""}
                   </p>
                 </div>
-                <span className="notification-meta">
-                  {formatDateTime(notification.createdAt, true)}
-                </span>
-              </button>
+                <div className="notification-meta">
+                  <span>{formatDateTime(notification.createdAt, true)}</span>
+                  <button
+                    type="button"
+                    className="notification-delete"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeleteNotification(notification.id);
+                    }}
+                  >
+                    삭제
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
