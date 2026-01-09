@@ -20,11 +20,11 @@ SEE:REAL은 서울 내 도시정비사업(재개발·재건축)의 **절차·단
 
 한눈에 파악할 수 있도록 설계되었습니다.
 
-![SEEREAL_page-0008](https://github.com/user-attachments/assets/0acb9074-7bde-4aa1-bdc6-d60ee806d18a)
-![SEEREAL_page-0007](https://github.com/user-attachments/assets/a5fdd516-1c8c-46f0-b9b9-9aeee56a413c)
-![SEEREAL_page-0006](https://github.com/user-attachments/assets/59544c0d-ee0a-4457-b09b-bee4095928a8)
-![SEEREAL_page-0005](https://github.com/user-attachments/assets/da6ac7be-530c-4622-a9b3-a29c282ec2da)
 ![SEEREAL_page-0004](https://github.com/user-attachments/assets/07a5c56d-8a57-4957-ab58-aba7a6f4c297)
+![SEEREAL_page-0005](https://github.com/user-attachments/assets/da6ac7be-530c-4622-a9b3-a29c282ec2da)
+![SEEREAL_page-0006](https://github.com/user-attachments/assets/59544c0d-ee0a-4457-b09b-bee4095928a8)
+![SEEREAL_page-0007](https://github.com/user-attachments/assets/a5fdd516-1c8c-46f0-b9b9-9aeee56a413c)
+![SEEREAL_page-0008](https://github.com/user-attachments/assets/0acb9074-7bde-4aa1-bdc6-d60ee806d18a)
 
 ---
 
